@@ -70,6 +70,17 @@ class OllamaClient {
       throw new Error(`Failed to list models: ${error.message}`);
     }
   }
+
+  async getModelInfo(modelName) {
+    try {
+      const response = await this.client.post('/api/show', {
+        name: modelName
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to get model info: ${error.message}`);
+    }
+  }
 }
 
 module.exports = OllamaClient;

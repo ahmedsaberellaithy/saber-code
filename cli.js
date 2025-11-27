@@ -406,29 +406,29 @@ async function getProjectSummary(model = "codellama") {
   }
 }
 
-async function applyEdit(description, model = "codellama") {
+async function applyEdit(description, model = 'codellama') {
   try {
     console.log(chalk.blue(`✏️  Applying edit: ${description}\n`));
-
+    
     const result = await ollamaClient.applyCodeChanges(description, model);
-
+    
     if (result.success) {
-      console.log(chalk.green.bold("✅ Edit applied successfully!"));
-      console.log(chalk.gray("Reasoning: ") + result.reasoning + "\n");
-
-      console.log(chalk.green("Operations performed:"));
-      result.operations.forEach((op) => {
-        console.log(`  ${chalk.green("•")} ${op.message}`);
+      console.log(chalk.green.bold('✅ Edit applied successfully!'));
+      console.log(chalk.gray('Reasoning: ') + result.reasoning + '\n');
+      
+      console.log(chalk.green('Operations performed:'));
+      result.operations.forEach(op => {
+        console.log(`  ${chalk.green('•')} ${op.message}`);
       });
     } else {
-      console.error(chalk.red.bold("❌ Failed to apply edit:"));
+      console.error(chalk.red.bold('❌ Failed to apply edit:'));
       console.error(chalk.red(result.error));
       if (result.rawResponse) {
-        console.log(chalk.yellow("\nRaw AI response:"));
+        console.log(chalk.yellow('\nRaw AI response:'));
         console.log(result.rawResponse);
       }
     }
-    console.log("");
+    console.log('');
   } catch (error) {
     console.error(chalk.red(`❌ Error applying edit: ${error.message}`));
   }
