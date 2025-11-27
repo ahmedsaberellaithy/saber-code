@@ -1,23 +1,23 @@
-const OllamaClient = require('./ollamaClient');
-const ProjectContext = require('./projectContext');
-const FileEditor = require('./fileEditor');
+const OllamaClient = require("./ollamaClient");
+const ProjectContext = require("./projectContext");
+const FileEditor = require("./fileEditor");
 class OllamaInterface {
   constructor(options = {}) {
     this.ollama = new OllamaClient(
-      options.baseURL || 'http://localhost:11434',
-      options.defaultModel || 'codellama'
+      options.baseURL || "http://localhost:11434",
+      options.defaultModel || "codellama:13b"
     );
     this.projectContext = new ProjectContext(options.rootPath);
     this.fileEditor = new FileEditor(options.rootPath);
     this.defaultOptions = {
       temperature: options.temperature || 0.7,
       max_tokens: options.max_tokens || 4096,
-      top_p: options.top_p || 0.9
+      top_p: options.top_p || 0.9,
     };
-    
+
     // Initialize messages object for Claude-compatible API
     this.messages = {
-      create: this.createMessage.bind(this)
+      create: this.createMessage.bind(this),
     };
   }
 
@@ -29,7 +29,7 @@ class OllamaInterface {
       await this.projectContext.initialize();
       return this.projectContext.context;
     } catch (error) {
-      console.warn('Initialization warning:', error.message);
+      console.warn("Initialization warning:", error.message);
       return this.projectContext.context;
     }
   }
@@ -43,8 +43,8 @@ class OllamaInterface {
     // Add system prompt with project context
     const systemPrompt = await this.projectContext.getSystemPrompt();
     const enhancedMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages
+      { role: "system", content: systemPrompt },
+      ...messages,
     ];
 
     const response = await this.ollama.chat(enhancedMessages, {
@@ -52,13 +52,13 @@ class OllamaInterface {
       max_tokens: max_tokens || this.defaultOptions.max_tokens,
       temperature: temperature || this.defaultOptions.temperature,
       top_p: top_p || this.defaultOptions.top_p,
-      stream: stream || false
+      stream: stream || false,
     });
 
     // Add to conversation history
     const lastUserMessage = messages[messages.length - 1].content;
-    this.projectContext.addToHistory('user', lastUserMessage);
-    this.projectContext.addToHistory('assistant', response.content);
+    this.projectContext.addToHistory("user", lastUserMessage);
+    this.projectContext.addToHistory("assistant", response.content);
 
     // Auto-update knowledge base periodically
     const historyLength = this.projectContext.getConversationHistory().length;
@@ -68,15 +68,15 @@ class OllamaInterface {
 
     return {
       id: `ollama-${Date.now()}`,
-      type: 'message',
-      role: 'assistant',
-      content: [{ type: 'text', text: response.content }],
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: response.content }],
       model: response.model,
-      stop_reason: 'end_turn',
+      stop_reason: "end_turn",
       usage: {
         input_tokens: 0,
-        output_tokens: 0
-      }
+        output_tokens: 0,
+      },
     };
   }
 
@@ -86,13 +86,13 @@ class OllamaInterface {
   async complete(prompt, options = {}) {
     const response = await this.ollama.generate(prompt, {
       ...this.defaultOptions,
-      ...options
+      ...options,
     });
 
     return {
       completion: response.content,
       model: response.model,
-      stop_reason: 'stop'
+      stop_reason: "stop",
     };
   }
 
@@ -101,7 +101,7 @@ class OllamaInterface {
    */
   async analyzeCode(filePath, model = this.ollama.defaultModel) {
     const fileContent = await this.projectContext.addFileToContext(filePath);
-    
+
     const analysisPrompt = `Analyze this code file and provide:
 1. Purpose and functionality
 2. Key functions/classes
@@ -116,8 +116,8 @@ ${fileContent.content}
 
     return this.createMessage({
       model: model,
-      messages: [{ role: 'user', content: analysisPrompt }],
-      max_tokens: 2048
+      messages: [{ role: "user", content: analysisPrompt }],
+      max_tokens: 2048,
     });
   }
 
@@ -126,7 +126,7 @@ ${fileContent.content}
    */
   async getProjectSummary(model = this.ollama.defaultModel) {
     await this.projectContext.initialize(); // Ensure fresh summary
-    
+
     const summaryPrompt = `Provide a comprehensive project summary based on the project structure.
 
 Please analyze:
@@ -138,8 +138,8 @@ Please analyze:
 
     return this.createMessage({
       model: model,
-      messages: [{ role: 'user', content: summaryPrompt }],
-      max_tokens: 2048
+      messages: [{ role: "user", content: summaryPrompt }],
+      max_tokens: 2048,
     });
   }
 
@@ -155,7 +155,7 @@ Please provide specific file operations in JSON format. Consider the current pro
 2. What operations to perform (create, update, replace, insert, delete)
 3. Exact content changes
 
-Return your response as JSON with this structure:
+Return ONLY valid JSON with this structure:
 {
   "reasoning": "brief explanation of changes",
   "operations": [
@@ -168,56 +168,116 @@ Return your response as JSON with this structure:
       "line": 10
     }
   ]
-}`;
+}
+
+Important: Return ONLY the JSON, no additional text or explanations.`;
 
     const response = await this.createMessage({
       model: model,
-      messages: [{ role: 'user', content: editPrompt }],
+      messages: [{ role: "user", content: editPrompt }],
       temperature: 0.3, // Lower temperature for more deterministic edits
-      max_tokens: 4096
+      max_tokens: 4096,
     });
 
-    // Parse the JSON response and apply edits
+    // Parse the JSON response - improved parsing
     try {
       const responseText = response.content[0].text;
-      const jsonStart = responseText.indexOf('{');
-      const jsonEnd = responseText.lastIndexOf('}') + 1;
-      const jsonString = responseText.substring(jsonStart, jsonEnd);
-      
+
+      // More robust JSON extraction
+      let jsonString = responseText;
+
+      // Try to extract JSON if it's wrapped in text
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonString = jsonMatch[0];
+      }
+
+      // Clean up common issues
+      jsonString = jsonString
+        .replace(/```json\s*/g, "") // Remove ```json markers
+        .replace(/```\s*/g, "") // Remove ``` markers
+        .trim();
+
       const editPlan = JSON.parse(jsonString);
       const results = [];
 
+      // Validate the edit plan structure
+      if (!editPlan.operations || !Array.isArray(editPlan.operations)) {
+        throw new Error("Invalid operations array in AI response");
+      }
+
       for (const operation of editPlan.operations) {
         try {
+          // Validate required fields
+          if (!operation.filePath || !operation.operation) {
+            results.push({
+              success: false,
+              error: `Missing required fields: filePath or operation`,
+              operation,
+            });
+            continue;
+          }
+
+          // For update operations, ensure we have content
+          if (
+            (operation.operation === "update" ||
+              operation.operation === "create") &&
+            !operation.content
+          ) {
+            results.push({
+              success: false,
+              error: `Missing content for ${operation.operation} operation`,
+              operation,
+            });
+            continue;
+          }
+
+          // For replace operations, ensure we have oldContent and newContent
+          if (
+            operation.operation === "replace" &&
+            (!operation.oldContent || !operation.newContent)
+          ) {
+            results.push({
+              success: false,
+              error: `Missing oldContent or newContent for replace operation`,
+              operation,
+            });
+            continue;
+          }
+
           const result = await this.fileEditor.applyEdit(operation);
           results.push(result);
-          
+
           // Add to recent changes
           this.projectContext.context.recentChanges.push({
             operation,
             result,
-            timestamp: new Date()
+            timestamp: new Date(),
           });
         } catch (error) {
           results.push({
             success: false,
             error: `Failed to apply operation on ${operation.filePath}: ${error.message}`,
-            operation
+            operation,
           });
         }
       }
 
       return {
-        reasoning: editPlan.reasoning,
+        reasoning: editPlan.reasoning || "No reasoning provided",
         operations: results,
-        success: results.every(r => r.success !== false),
-        rawResponse: responseText
+        success: results.every((r) => r.success !== false),
+        rawResponse: responseText,
       };
     } catch (error) {
+      console.error("JSON Parse Error:", error.message);
+      console.error("Raw Response:", response.content[0].text);
+
       return {
         success: false,
-        error: `Failed to parse or apply edits: ${error.message}`,
-        rawResponse: response.content[0].text
+        error: `Failed to parse AI response: ${error.message}`,
+        rawResponse: response.content[0].text,
+        parsingError: true,
       };
     }
   }
@@ -227,7 +287,7 @@ Return your response as JSON with this structure:
    */
   async searchCode(searchTerm, model = this.ollama.defaultModel) {
     const matches = await this.projectContext.searchAndAddFiles(searchTerm);
-    
+
     const searchPrompt = `I found ${matches.length} files containing "${searchTerm}".
 
 Please analyze the code patterns and provide:
@@ -238,8 +298,8 @@ Please analyze the code patterns and provide:
 
     return this.createMessage({
       model: model,
-      messages: [{ role: 'user', content: searchPrompt }],
-      max_tokens: 2048
+      messages: [{ role: "user", content: searchPrompt }],
+      max_tokens: 2048,
     });
   }
 
@@ -249,15 +309,15 @@ Please analyze the code patterns and provide:
   async updateKnowledge() {
     try {
       const knowledgeContent = await this.projectContext.updateKnowledgeBase();
-      return { 
-        success: true, 
-        message: 'Knowledge base updated',
-        filePath: this.projectContext.knowledgeFile
+      return {
+        success: true,
+        message: "Knowledge base updated",
+        filePath: this.projectContext.knowledgeFile,
       };
     } catch (error) {
-      return { 
-        success: false, 
-        error: error.message 
+      return {
+        success: false,
+        error: error.message,
       };
     }
   }

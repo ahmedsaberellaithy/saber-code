@@ -4,7 +4,7 @@ const { Command } = require("commander");
 const chalk = require("chalk");
 const inquirer = require("inquirer");
 const path = require("path");
-const { OllamaInterface } = require("./index");
+const { OllamaInterface, client } = require("./index");
 
 const program = new Command();
 const ollamaClient = new OllamaInterface({ rootPath: process.cwd() });
@@ -26,7 +26,7 @@ async function initialize() {
 initialize();
 
 program
-  .name("saber")
+  .name("saber-code")
   .description(
     "🤖 AI-powered code assistant with file editing and project analysis - By Ahmed Saber"
   )
@@ -36,7 +36,7 @@ program
 program
   .command("chat")
   .description("Start an interactive coding session")
-  .option("-m, --model <model>", "Model to use", "codellama")
+  .option("-m, --model <model>", "Model to use", "codellama:13b")
   .option("-t, --temperature <number>", "Temperature", "0.7")
   .action(async (options) => {
     console.log(chalk.blue.bold("\n🚀 Saber Code Assistant"));
@@ -137,7 +137,7 @@ program
 program
   .command("analyze <file>")
   .description("Analyze a specific file")
-  .option("-m, --model <model>", "Model to use", "codellama")
+  .option("-m, --model <model>", "Model to use", "codellama:13b")
   .action(async (file, options) => {
     await analyzeFile(file, options.model);
   });
@@ -146,7 +146,7 @@ program
 program
   .command("summary")
   .description("Get project summary and analysis")
-  .option("-m, --model <model>", "Model to use", "codellama")
+  .option("-m, --model <model>", "Model to use", "codellama:13b")
   .action(async (options) => {
     await getProjectSummary(options.model);
   });
@@ -155,7 +155,7 @@ program
 program
   .command("edit <description>")
   .description("Apply code changes based on natural language description")
-  .option("-m, --model <model>", "Model to use", "codellama")
+  .option("-m, --model <model>", "Model to use", "codellama:13b")
   .action(async (description, options) => {
     await applyEdit(description, options.model);
   });
@@ -164,7 +164,7 @@ program
 program
   .command("search <term>")
   .description("Search for code patterns in the project")
-  .option("-m, --model <model>", "Model to use", "codellama")
+  .option("-m, --model <model>", "Model to use", "codellama:13b")
   .action(async (term, options) => {
     await searchCode(term, options.model);
   });
@@ -378,7 +378,7 @@ async function loadFiles(patterns) {
   }
 }
 
-async function analyzeFile(filePath, model = "codellama") {
+async function analyzeFile(filePath, model = "codellama:13b") {
   try {
     console.log(chalk.blue(`🔍 Analyzing ${filePath}...\n`));
 
@@ -392,7 +392,7 @@ async function analyzeFile(filePath, model = "codellama") {
   }
 }
 
-async function getProjectSummary(model = "codellama") {
+async function getProjectSummary(model = "codellama:13b") {
   try {
     console.log(chalk.blue("📊 Generating project summary...\n"));
 
@@ -406,11 +406,11 @@ async function getProjectSummary(model = "codellama") {
   }
 }
 
-async function applyEdit(description, model = 'codellama') {
+async function applyEdit(description, model = 'codellama:13b') {
   try {
     console.log(chalk.blue(`✏️  Applying edit: ${description}\n`));
     
-    const result = await ollamaClient.applyCodeChanges(description, model);
+    const result = await client.applyCodeChanges(description, model);
     
     if (result.success) {
       console.log(chalk.green.bold('✅ Edit applied successfully!'));
@@ -418,13 +418,21 @@ async function applyEdit(description, model = 'codellama') {
       
       console.log(chalk.green('Operations performed:'));
       result.operations.forEach(op => {
-        console.log(`  ${chalk.green('•')} ${op.message}`);
+        const status = op.success ? chalk.green('✅') : chalk.red('❌');
+        console.log(`  ${status} ${op.message || op.error}`);
       });
     } else {
       console.error(chalk.red.bold('❌ Failed to apply edit:'));
+      
+      if (result.parsingError) {
+        console.log(chalk.yellow('🤖 AI returned invalid JSON format.'));
+        console.log(chalk.yellow('The AI understood your request but returned malformed JSON.'));
+      }
+      
       console.error(chalk.red(result.error));
+      
       if (result.rawResponse) {
-        console.log(chalk.yellow('\nRaw AI response:'));
+        console.log(chalk.yellow('\n📝 Raw AI response:'));
         console.log(result.rawResponse);
       }
     }
@@ -434,7 +442,7 @@ async function applyEdit(description, model = 'codellama') {
   }
 }
 
-async function searchCode(term, model = "codellama") {
+async function searchCode(term, model = "codellama:13b") {
   try {
     console.log(chalk.blue(`🔍 Searching for: "${term}"\n`));
 

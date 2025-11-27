@@ -33,7 +33,7 @@ Saber is a intelligent command-line interface that uses local Ollama models to h
 
 2. **Pull a Model**
    ```bash
-   ollama pull codellama
+   ollama pull codellama:13b
    # or
    ollama pull llama2
    ollama pull mistral
@@ -57,19 +57,19 @@ npm install -g .
 
 ```bash
 # Start interactive chat session
-saber chat
+saber-code chat
 
 # Get project summary
-saber summary
+saber-code summary
 
 # Analyze a specific file
-saber analyze src/index.js
+saber-code analyze src/index.js
 
 # Make code changes with natural language
-saber edit "Add error handling to the main function"
+saber-code edit "Add error handling to the main function"
 
 # Search for code patterns
-saber search "function calculate"
+saber-code search "function calculate"
 ```
 
 ## 📖 Detailed Usage
@@ -79,7 +79,7 @@ saber search "function calculate"
 Start a contextual coding session that remembers your project:
 
 ```bash
-saber chat
+saber-code chat
 ```
 
 In chat mode, use these commands:
@@ -98,14 +98,14 @@ In chat mode, use these commands:
 
 ```bash
 # Comprehensive project overview
-saber summary
+saber-code summary
 
 # Analyze specific files
-saber analyze package.json
-saber analyze src/components/Button.js
+saber-code analyze package.json
+saber-code analyze src/components/Button.js
 
 # Load multiple files for context
-saber load "src/**/*.js" "package.json"
+saber-code load "src/**/*.js" "package.json"
 ```
 
 ### Code Editing
@@ -114,31 +114,31 @@ Make intelligent code changes using natural language:
 
 ```bash
 # Create new files
-saber edit "Create a utility function for date formatting in src/utils/date.js"
+saber-code edit "Create a utility function for date formatting in src/utils/date.js"
 
 # Modify existing code
-saber edit "Add error handling to the fetchData function"
+saber-code edit "Add error handling to the fetchData function"
 
 # Refactor code
-saber edit "Refactor the User class to use TypeScript"
+saber-code edit "Refactor the User class to use TypeScript"
 
 # Fix issues
-saber edit "Fix the memory leak in the data processing function"
+saber-code edit "Fix the memory leak in the data processing function"
 ```
 
 ### Knowledge Management
 
-Saber builds a knowledge base about your project:
+the Project builds a knowledge base about your project:
 
 ```bash
 # View project knowledge
-saber knowledge
+saber-code knowledge
 
 # Update knowledge base
-saber knowledge --update
+saber-code knowledge --update
 
 # View chat history
-saber history
+saber-code history
 ```
 
 ## 🛠️ Advanced Usage
@@ -149,16 +149,16 @@ List and use different Ollama models:
 
 ```bash
 # List available models
-saber models
+saber-code models
 
 # Use specific model
-saber chat --model mistral
-saber edit --model llama2 "Your edit description"
+saber-code chat --model mistral
+saber-code edit --model llama2 "Your edit description"
 ```
 
 ### Configuration
 
-Saber automatically creates a `.saber-chat-history` directory in your project with:
+saber-code automatically creates a `.saber-chat-history` directory in your project with:
 - `chat_history.json` - Conversation history
 - `intro_to_project.md` - Project knowledge base
 
@@ -169,7 +169,7 @@ Saber automatically creates a `.saber-chat-history` directory in your project wi
 export OLLAMA_HOST=http://localhost:11434
 
 # Default model
-export SABER_DEFAULT_MODEL=codellama
+export SABER_DEFAULT_MODEL=codellama:13b
 ```
 
 ## 🏗️ Project Structure
@@ -253,15 +253,7 @@ ollama list
 **Model Not Found**
 ```bash
 # Pull the required model
-ollama pull codellama
-```
-
-
-### Debug Mode
-
-Enable verbose logging:
-```bash
-DEBUG=saber* saber chat
+ollama pull codellama:13b
 ```
 
 

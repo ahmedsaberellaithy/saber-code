@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 class OllamaClient {
-  constructor(baseURL = 'http://localhost:11434', defaultModel = 'codellama') {
+  constructor(baseURL = 'http://localhost:11434', defaultModel = 'codellama:13b') {
     this.baseURL = baseURL;
     this.defaultModel = defaultModel;
     this.client = axios.create({
