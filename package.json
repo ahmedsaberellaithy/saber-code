@@ -1,0 +1,30 @@
+{
+  "name": "saber-code-cli",
+  "version": "1.0.0",
+  "description": "AI-powered code assistant with file editing and project analysis",
+  "main": "index.js",
+  "bin": {
+    "saber": "./cli.js"
+  },
+  "scripts": {
+    "start": "node cli.js"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.6",
+    "glob": "^10.3.0",
+    "node-watch": "^0.7.3"
+  },
+  "keywords": [
+    "saber-code",
+    "ollama",
+    "claude",
+    "ai",
+    "local",
+    "privacy"
+  ],
+  "author": "Saber",
+  "license": "MIT"
+}
