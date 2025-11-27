@@ -1,10 +1,10 @@
 {
   "name": "saber-code-cli",
   "version": "1.0.0",
-  "description": "AI-powered code assistant with file editing and project analysis",
+  "description": "AI-powered code assistant with file editing and project analysis - By Ahmed Saber",
   "main": "index.js",
   "bin": {
-    "saber": "./cli.js"
+    "saber-code": "./cli.js"
   },
   "scripts": {
     "start": "node cli.js"
