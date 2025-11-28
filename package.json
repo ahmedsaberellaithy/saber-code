@@ -8,16 +8,32 @@
   },
   "scripts": {
     "start": "node cli.js",
-    "test": "node test/test.js",
-    "test:verbose": "node test/test.js --verbose",
-    "test:quick": "node -e \"const { OllamaInterface } = require('./index'); new OllamaInterface().initialize().then(() => console.log('✅ Basic initialization works!')).catch(e => console.error('❌ Failed:', e.message))\""
+    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:unit": "jest --config test/jest.config.js --testPathPattern=\"test/unit\"",
+    "test:integration": "jest --config test/jest.config.js --testPathPattern=\"test/integration\" --runInBand",
+    "test:e2e": "jest --config test/jest.config.js --testPathPattern=\"test/e2e\" --runInBand",
+    "test:all": "jest --config test/jest.config.js --runInBand",
+    "test:watch": "jest --config test/jest.config.js --watch",
+    "test:coverage": "jest --config test/jest.config.js --coverage --runInBand"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/**/*.test.js"
+    ],
+    "coverageDirectory": "coverage"
   },
   "dependencies": {
     "axios": "^1.5.0",
-    "commander": "^11.1.0",
     "chalk": "^4.1.2",
-    "inquirer": "^8.2.6",
-    "glob": "^10.3.0"
+    "commander": "^11.1.0",
+    "glob": "^10.3.0",
+    "inquirer": "^8.2.6"
   },
   "keywords": [
     "saber-code",
