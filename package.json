@@ -8,17 +8,16 @@
   },
   "scripts": {
     "start": "node cli.js",
-        "test": "node test/test.js",
+    "test": "node test/test.js",
     "test:verbose": "node test/test.js --verbose",
-    "test:quick": "node -e \"const { OllamaInterface } = require('./src/ollamaInterface'); new OllamaInterface().initialize().then(() => console.log('✅ Basic initialization works!')).catch(e => console.error('❌ Failed:', e.message))\""
+    "test:quick": "node -e \"const { OllamaInterface } = require('./index'); new OllamaInterface().initialize().then(() => console.log('✅ Basic initialization works!')).catch(e => console.error('❌ Failed:', e.message))\""
   },
   "dependencies": {
     "axios": "^1.5.0",
     "commander": "^11.1.0",
     "chalk": "^4.1.2",
     "inquirer": "^8.2.6",
-    "glob": "^10.3.0",
-    "node-watch": "^0.7.3"
+    "glob": "^10.3.0"
   },
   "keywords": [
     "saber-code",

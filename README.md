@@ -1,23 +1,31 @@
-# 🚀 Saber Code CLI
+# Saber Code CLI 🚀
 
 > **Your AI-powered coding companion that keeps your data private**
 
-Saber is a intelligent command-line interface that uses local Ollama models to help you with code analysis, editing, and project management—all while keeping your code completely private on your machine.
-
-![CLI Demo](https://img.shields.io/badge/CLI-AI%20Assistant-blue)
-![Data Privacy](https://img.shields.io/badge/Data-100%25%20Private-green)
-![Ollama Powered](https://img.shields.io/badge/Powered%20By-Ollama-orange)
+Saber Code CLI is a powerful command-line interface that replicates the Claude Code experience locally using Ollama. It provides intelligent code analysis, editing, and project management while keeping all your data private on your machine.
 
 ## ✨ Features
 
-- **🤖 AI-Powered Code Assistance** - Get intelligent code suggestions and analysis
-- **🔒 Complete Data Privacy** - Everything runs locally using Ollama models
-- **📁 Project Context Awareness** - Understands your project structure and history
-- **✏️ Intelligent Code Editing** - Make changes using natural language
-- **📚 Persistent Knowledge Base** - Remembers your project across sessions
-- **🔍 Code Search & Analysis** - Find patterns and analyze codebases
-- **💬 Interactive Chat Interface** - Natural conversations about your code
-- **🔄 History & Context** - Maintains conversation history and project learning
+### 🤖 AI-Powered Assistance
+- **Local AI Models**: Uses Ollama models (codellama, mistral, etc.) - no API keys required
+- **Claude-Compatible Interface**: Familiar API structure for easy adoption
+- **Context-Aware**: Understands your project structure and history
+
+### 📁 Project Intelligence
+- **Project Analysis**: Automatic project structure understanding
+- **Code Search**: Find patterns and functions across your codebase
+- **Smart Summarization**: Get comprehensive project overviews
+- **Knowledge Base**: Builds persistent project knowledge across sessions
+
+### ✏️ Intelligent Code Editing
+- **Natural Language Edits**: Make code changes using plain English
+- **File Operations**: Create, update, replace, insert, and delete files
+- **Contextual Understanding**: AI understands your project context for better edits
+
+### 🔒 Privacy & Control
+- **100% Local**: Everything runs on your machine
+- **No Data Sharing**: Your code never leaves your computer
+- **Offline Capable**: Work without internet connection
 
 ## 🚀 Quick Start
 
@@ -34,19 +42,15 @@ Saber is a intelligent command-line interface that uses local Ollama models to h
 2. **Pull a Model**
    ```bash
    ollama pull codellama:13b
-   # or
-   ollama pull llama2
-   ollama pull mistral
+   # or other models: mistral, llama2, etc.
    ```
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
+# Clone and install
+git clone <your-repo>
 cd saber-code-cli
-
-# Install dependencies
 npm install
 
 # Install globally (optional)
@@ -72,16 +76,12 @@ saber-code edit "Add error handling to the main function"
 saber-code search "function calculate"
 ```
 
-## 📖 Detailed Usage
+## 📖 Command Reference
 
 ### Interactive Chat Mode
-
-Start a contextual coding session that remembers your project:
-
 ```bash
 saber-code chat
 ```
-
 In chat mode, use these commands:
 - `/load src/utils.js` - Load files into context
 - `/analyze src/app.js` - Analyze specific file
@@ -94,148 +94,91 @@ In chat mode, use these commands:
 - `clear` - Clear session context
 - `quit` - Exit chat
 
-### Project Analysis
-
+### Individual Commands
 ```bash
-# Comprehensive project overview
+# Project Analysis
 saber-code summary
-
-# Analyze specific files
 saber-code analyze package.json
-saber-code analyze src/components/Button.js
-
-# Load multiple files for context
 saber-code load "src/**/*.js" "package.json"
-```
 
-### Code Editing
+# Code Operations
+saber-code edit "Create a new utility function for date formatting"
+saber-code search "axios.get"
+saber-code models  # List available Ollama models
 
-Make intelligent code changes using natural language:
-
-```bash
-# Create new files
-saber-code edit "Create a utility function for date formatting in src/utils/date.js"
-
-# Modify existing code
-saber-code edit "Add error handling to the fetchData function"
-
-# Refactor code
-saber-code edit "Refactor the User class to use TypeScript"
-
-# Fix issues
-saber-code edit "Fix the memory leak in the data processing function"
-```
-
-### Knowledge Management
-
-the Project builds a knowledge base about your project:
-
-```bash
-# View project knowledge
-saber-code knowledge
-
-# Update knowledge base
+# Knowledge Management
 saber-code knowledge --update
-
-# View chat history
 saber-code history
+saber-code context
 ```
 
 ## 🛠️ Advanced Usage
 
-### Available Models
-
-List and use different Ollama models:
-
+### Model Selection
 ```bash
-# List available models
-saber-code models
-
 # Use specific model
 saber-code chat --model mistral
-saber-code edit --model llama2 "Your edit description"
+saber-code edit --model codellama:13b "Your edit description"
+
+# List available models
+saber-code models
 ```
 
-### Configuration
-
-saber-code automatically creates a `.saber-chat-history` directory in your project with:
+### Project Context
+Saber automatically creates a `.saber-chat-history` directory with:
 - `chat_history.json` - Conversation history
 - `intro_to_project.md` - Project knowledge base
-
-### Environment Variables
-
-```bash
-# Custom Ollama endpoint (if not default)
-export OLLAMA_HOST=http://localhost:11434
-
-# Default model
-export SABER_DEFAULT_MODEL=codellama:13b
-```
 
 ## 🏗️ Project Structure
 
 ```
 saber-code-cli/
 ├── src/
-│   ├── ollamaInterface.js    # Main AI interface
-│   ├── ollamaClient.js       # Ollama API client
-│   ├── orojectContext.js     # Project context management
-│   ├── codeAnalyzer.js       # Code analysis utilities
-│   └── fileEditor.js         # File operations
-├── test/
-│   └── test.js       # Test suite
-├── cli.js                    # Command-line interface
-├── index.js                  # Main exports
-└── package.json
+│   ├── core/           # Core functionality
+│   │   ├── ollamaInterface.js
+│   │   ├── ollamaClient.js
+│   │   ├── projectContext.js
+│   │   └── fileEditor.js
+│   ├── features/       # Specialized features
+│   │   └── codeAnalyzer.js
+│   └── utils/          # Utility functions
+│       ├── fileUtils.js
+│       ├── logger.js
+│       └── patterns.js
+├── cli.js              # Command-line interface
+├── index.js            # Main exports
+└── test/               # Test suite
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Run comprehensive tests
+# Run tests
 npm test
 
 # Quick smoke test
-npm run test:basic
-
-# Check Ollama connection
-npm run test:ollama
-
-# Run all tests
-npm run test:all
+npm run test:quick
 ```
 
 ## 🔧 Development
 
 ### Adding New Features
-
-1. **New CLI Commands**: Add to `cli.js`
-2. **AI Capabilities**: Extend `ollamaInterface.js`
-3. **Project Analysis**: Enhance `projectContext.js`
-4. **File Operations**: Update `fileEditor.js`
+1. **Core Features**: Add to `src/core/`
+2. **Specialized Features**: Add to `src/features/`
+3. **Utilities**: Add to `src/utils/`
+4. **CLI Commands**: Update `cli.js`
 
 ### Example: Adding a New Command
-
 ```javascript
 // In cli.js
 program
   .command('document <file>')
   .description('Generate documentation for a file')
   .action(wrapCommand(async (file) => {
-    const response = await claude.generateDocumentation(file);
+    const response = await ollamaClient.generateDocumentation(file);
     console.log(response);
   }));
 ```
-
-## 📋 Todo & Roadmap
-
-- [ ] **Streaming Responses** - Real-time AI responses
-- [ ] **Multi-modal Support** - Image and code understanding
-- [ ] **Plugin System** - Extensible functionality
-- [ ] **Git Integration** - Commit message generation, diff analysis
-- [ ] **Code Review** - Automated PR reviews
-- [ ] **Testing Integration** - Test generation and analysis
-- [ ] **Deployment Helpers** - Docker, cloud deployment scripts
 
 ## 🐛 Troubleshooting
 
@@ -257,7 +200,14 @@ ollama pull codellama:13b
 ```
 
 
-## 🙏 Acknowledgments
+## 📋 Roadmap
 
-- **Ollama** - For making local AI models accessible
-- **Anthropic** - For the Claude API interface inspiration
+- [ ] **Streaming Responses** - Real-time AI responses
+- [ ] **Multi-modal Support** - Image and code understanding
+- [ ] **Git Integration** - Commit message generation, diff analysis
+- [ ] **Plugin System** - Extensible functionality
+- [ ] **Code Review** - Automated PR reviews
+
+## 📄 License
+
+MIT License - see LICENSE file for details.

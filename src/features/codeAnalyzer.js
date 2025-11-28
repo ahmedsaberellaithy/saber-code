@@ -1,6 +1,6 @@
-const fs = require('fs').promises;
-const path = require('path');
 const { glob } = require('glob');
+const { readFile } = require('../utils/fileUtils');
+const path = require('path');
 
 class CodeAnalyzer {
   constructor(rootPath = process.cwd()) {
@@ -23,14 +23,12 @@ class CodeAnalyzer {
         nodir: true
       });
 
-      const structure = {
+      return {
         root: this.rootPath,
         fileCount: files.length,
-        files: files.slice(0, 100), // Limit for large projects
+        files: files.slice(0, 100),
         fileTypes: this.analyzeFileTypes(files)
       };
-
-      return structure;
     } catch (error) {
       throw new Error(`Failed to analyze project structure: ${error.message}`);
     }
@@ -48,7 +46,7 @@ class CodeAnalyzer {
   async readFile(filePath) {
     try {
       const fullPath = path.isAbsolute(filePath) ? filePath : path.join(this.rootPath, filePath);
-      const content = await fs.readFile(fullPath, 'utf8');
+      const content = await readFile(fullPath);
       return {
         path: filePath,
         content: content,
@@ -88,7 +86,7 @@ class CodeAnalyzer {
     });
 
     const matches = [];
-    for (const file of allFiles.slice(0, 50)) { // Limit search for performance
+    for (const file of allFiles.slice(0, 50)) {
       try {
         const content = await this.readFile(file);
         if (content.content.toLowerCase().includes(searchTerm.toLowerCase())) {
