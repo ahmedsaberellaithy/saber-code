@@ -1,6 +1,9 @@
-node_modules
+node_modules/
 package-lock.json
 .DS_Store
-dist
+dist/
 .env
-.saber-chat-history
+.saber-chat-history/
+*.log
+coverage/
+.nyc_output/

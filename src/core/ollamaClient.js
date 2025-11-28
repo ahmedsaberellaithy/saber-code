@@ -4,6 +4,16 @@ class OllamaClient {
   constructor(baseURL = 'http://localhost:11434', defaultModel = 'codellama:13b') {
     this.baseURL = baseURL;
     this.defaultModel = defaultModel;
+    
+    // Model-specific timeouts
+    this.modelTimeouts = {
+      'codellama:70b': 300000,
+      'llama2:70b': 300000,
+      'wizardcoder:15b': 180000,
+      'codellama:13b': 120000,
+      'default': 120000
+    };
+
     this.client = axios.create({
       baseURL: this.baseURL,
       timeout: 120000
@@ -19,6 +29,8 @@ class OllamaClient {
       stream = false
     } = options;
 
+    const timeout = this.modelTimeouts[model] || this.modelTimeouts['default'];
+    
     try {
       const response = await this.client.post('/api/generate', {
         model,
@@ -29,6 +41,9 @@ class OllamaClient {
           top_p,
           num_predict: max_tokens
         }
+      }, {
+        timeout: timeout,
+        timeoutErrorMessage: `Model ${model} is taking too long. Try a smaller model.`
       });
 
       return {
@@ -38,6 +53,9 @@ class OllamaClient {
         done: response.data.done
       };
     } catch (error) {
+      if (error.code === 'ECONNABORTED') {
+        throw new Error(`Ollama timeout: ${model} is too slow. Try codellama:13b or mistral.`);
+      }
       throw new Error(`Ollama API error: ${error.message}`);
     }
   }
