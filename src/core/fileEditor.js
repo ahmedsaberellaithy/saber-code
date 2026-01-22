@@ -32,6 +32,12 @@ class FileEditor {
           result = await this.updateFile(filePath, content);
           break;
 
+        case "append":
+          if (!content)
+            throw new Error("content is required for append operation");
+          result = await this.appendToFile(filePath, content);
+          break;
+
         case "replace":
           if (!oldContent || !newContent)
             throw new Error(
@@ -54,7 +60,7 @@ class FileEditor {
 
         default:
           throw new Error(
-            `Unknown operation: ${operation}. Supported: create, update, replace, insert, delete`
+            `Unknown operation: ${operation}. Supported: create, update, append, replace, insert, delete`
           );
       }
 
@@ -64,6 +70,11 @@ class FileEditor {
           result.message || `Operation ${operation} completed on ${filePath}`,
         filePath: filePath,
         operation: operation,
+        content: result.content || content,
+        // Include additional properties from result (previousContent, newContent, replacements, etc.)
+        ...(result.previousContent && { previousContent: result.previousContent }),
+        ...(result.newContent && { newContent: result.newContent }),
+        ...(result.replacements !== undefined && { replacements: result.replacements }),
       };
     } catch (error) {
       console.error(
@@ -81,14 +92,46 @@ class FileEditor {
 
   async createFile(filePath, content) {
     await this.fileUtils.writeFile(filePath, content);
-    return { message: `Created file: ${filePath}` };
+    return { 
+      message: `Created file: ${filePath}`,
+      content: content 
+    };
   }
 
   async updateFile(filePath, newContent) {
     const exists = await this.fileExists(filePath);
     if (!exists) throw new Error(`File does not exist: ${filePath}`);
+    
+    // Read existing content first (for context updates)
+    const existingContent = await this.readFile(filePath);
+    
+    // Write new content (replaces entire file)
     await this.fileUtils.writeFile(filePath, newContent);
-    return { message: `Updated file: ${filePath}` };
+    
+    return { 
+      message: `Updated file: ${filePath}`,
+      previousContent: existingContent,
+      newContent: newContent,
+      content: newContent
+    };
+  }
+
+  async appendToFile(filePath, contentToAppend) {
+    const exists = await this.fileExists(filePath);
+    if (!exists) throw new Error(`File does not exist: ${filePath}`);
+    
+    const existingContent = await this.readFile(filePath);
+    const newContent = existingContent + "\n" + contentToAppend;
+    
+    await this.fileUtils.writeFile(filePath, newContent);
+    
+    return { 
+      message: `Appended content to: ${filePath}`,
+      previousContent: existingContent,
+      appendedContent: contentToAppend,
+      newContent: newContent,
+      content: newContent
+    };
   }
 
   async replaceInFile(filePath, oldContent, newContent) {
@@ -96,30 +139,57 @@ class FileEditor {
     if (!currentContent.includes(oldContent)) {
       throw new Error(`Content to replace not found in file: ${filePath}`);
     }
+    
     const updatedContent = currentContent.replace(oldContent, newContent);
     await this.fileUtils.writeFile(filePath, updatedContent);
+    
+    // Count how many occurrences were actually replaced (replace() only replaces first)
+    const totalOccurrences = currentContent.split(oldContent).length - 1;
+    const actualReplacements = totalOccurrences > 0 ? 1 : 0; // replace() only replaces first occurrence
+    
     return {
       message: `Replaced content in: ${filePath}`,
-      replacements: currentContent.split(oldContent).length - 1,
+      previousContent: currentContent,
+      replacedContent: oldContent,
+      replacementContent: newContent,
+      newContent: updatedContent,
+      replacements: actualReplacements,
+      content: updatedContent
     };
   }
 
   async insertAtLine(filePath, lineNumber, contentToInsert) {
     const currentContent = await this.fileUtils.readFile(filePath);
     const lines = currentContent.split("\n");
+    
     if (lineNumber < 1 || lineNumber > lines.length + 1) {
       throw new Error(`Line number ${lineNumber} is out of range`);
     }
+    
     lines.splice(lineNumber - 1, 0, contentToInsert);
-    await this.fileUtils.writeFile(filePath, lines.join("\n"));
+    const newContent = lines.join("\n");
+    await this.fileUtils.writeFile(filePath, newContent);
+    
     return {
       message: `Inserted content at line ${lineNumber} in: ${filePath}`,
+      previousContent: currentContent,
+      insertedContent: contentToInsert,
+      newContent: newContent,
+      content: newContent
     };
   }
 
   async deleteFile(filePath) {
+    const exists = await this.fileExists(filePath);
+    if (!exists) throw new Error(`File does not exist: ${filePath}`);
+    
+    const previousContent = await this.readFile(filePath);
     await this.fileUtils.unlink(filePath);
-    return { message: `Deleted file: ${filePath}` };
+    
+    return { 
+      message: `Deleted file: ${filePath}`,
+      previousContent: previousContent
+    };
   }
 
   async fileExists(filePath) {
@@ -140,6 +210,39 @@ class FileEditor {
   // Get file info for debugging
   async getFileInfo(filePath) {
     return await this.fileUtils.getFileInfo(filePath);
+  }
+
+  // Helper to modify specific parts of a file
+  async modifyFile(filePath, modifications) {
+    const currentContent = await this.readFile(filePath);
+    let newContent = currentContent;
+    
+    for (const mod of modifications) {
+      if (mod.type === 'replace' && mod.oldContent && mod.newContent) {
+        newContent = newContent.replace(mod.oldContent, mod.newContent);
+      } else if (mod.type === 'insert' && mod.line !== undefined && mod.content) {
+        const lines = newContent.split("\n");
+        lines.splice(mod.line - 1, 0, mod.content);
+        newContent = lines.join("\n");
+      }
+    }
+    
+    if (newContent !== currentContent) {
+      await this.fileUtils.writeFile(filePath, newContent);
+      return {
+        success: true,
+        message: `Modified file: ${filePath}`,
+        previousContent: currentContent,
+        newContent: newContent,
+        content: newContent
+      };
+    }
+    
+    return {
+      success: true,
+      message: `No changes made to: ${filePath}`,
+      content: currentContent
+    };
   }
 }
 

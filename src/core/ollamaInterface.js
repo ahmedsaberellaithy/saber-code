@@ -1,7 +1,7 @@
 const OllamaClient = require("./ollamaClient");
 const ProjectContext = require("./projectContext");
 const FileEditor = require("./fileEditor");
-const path = require('path');
+const path = require("path");
 
 class OllamaInterface {
   constructor(options = {}) {
@@ -56,7 +56,11 @@ class OllamaInterface {
 
     const historyLength = this.projectContext.getConversationHistory().length;
     if (historyLength % 5 === 0) {
-      await this.updateKnowledge();
+      try {
+        await this.updateKnowledge();
+      } catch (error) {
+        console.warn("⚠️  Failed to update knowledge base:", error.message);
+      }
     }
 
     return {
@@ -174,7 +178,11 @@ Important: Return ONLY the JSON, no additional text or explanations.`;
 
     // Parse the JSON response
     try {
-      const responseText = response.content[0].text;
+      // Extract text from Claude-compatible response format
+      const responseText = response?.content?.[0]?.text || response?.content || "";
+      if (!responseText) {
+        throw new Error("Empty response from AI");
+      }
       console.log("🔍 Raw AI Response:", responseText);
 
       let jsonString = responseText;
@@ -196,6 +204,15 @@ Important: Return ONLY the JSON, no additional text or explanations.`;
 
       if (!editPlan.operations || !Array.isArray(editPlan.operations)) {
         throw new Error("Invalid operations array in AI response");
+      }
+
+      if (editPlan.operations.length === 0) {
+        return {
+          success: false,
+          error: "AI returned empty operations array. Please be more specific in your edit request.",
+          rawResponse: responseText,
+          parsingError: false,
+        };
       }
 
       // Fix path issues before processing
@@ -304,18 +321,31 @@ Important: Return ONLY the JSON, no additional text or explanations.`;
           }
 
           const result = await this.fileEditor.applyEdit(operation);
-          results.push(result);
 
-          this.projectContext.context.recentChanges.push({
-            operation,
-            result,
-            timestamp: new Date(),
-          });
+          if (result.success) {
+            await this.projectContext.updateFileContext(
+              operation.filePath,
+              operation.operation,
+              result
+            );
+          }
+
+          results.push(result);
+          // Note: updateFileContext already handles adding to recentChanges,
+          // so we don't need to push here to avoid duplicates
         } catch (error) {
-          results.push({
+          const failedResult = {
             success: false,
             error: `Failed to apply operation on ${operation.filePath}: ${error.message}`,
             operation,
+          };
+          results.push(failedResult);
+          
+          // Track failed operations in recentChanges
+          this.projectContext.context.recentChanges.push({
+            operation,
+            result: failedResult,
+            timestamp: new Date(),
           });
         }
       }
@@ -328,12 +358,25 @@ Important: Return ONLY the JSON, no additional text or explanations.`;
       };
     } catch (error) {
       console.error("❌ JSON Parse Error:", error.message);
-      console.error("📝 Raw Response:", response.content[0].text);
+      let rawResponseText = "No response available";
+      
+      if (response?.content?.[0]?.text) {
+        rawResponseText = response.content[0].text;
+      } else if (response?.content) {
+        // If content is an array without text property, stringify it
+        rawResponseText = typeof response.content === 'string' 
+          ? response.content 
+          : JSON.stringify(response.content);
+      } else if (response?.content === undefined) {
+        rawResponseText = "No response available";
+      }
+      
+      console.error("📝 Raw Response:", rawResponseText);
 
       return {
         success: false,
         error: `Failed to parse AI response: ${error.message}`,
-        rawResponse: response.content[0].text,
+        rawResponse: rawResponseText,
         parsingError: true,
       };
     }

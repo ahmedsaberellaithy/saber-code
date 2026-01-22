@@ -1,463 +1,114 @@
 #!/usr/bin/env node
 
-const { Command } = require("commander");
-const chalk = require("chalk");
-const inquirer = require("inquirer");
-const { OllamaInterface } = require("./index");
+const { Command } = require('commander');
+const chalk = require('chalk');
+const {
+  runChat,
+  runPlan,
+  runExec,
+  runSearch,
+  runAnalyze,
+  runModels
+} = require('./src/cli');
 
 const program = new Command();
-let ollamaClient;
-
-// Initialize the project context
-async function initialize() {
-  try {
-    ollamaClient = new OllamaInterface({ rootPath: process.cwd() });
-    await ollamaClient.initialize();
-    console.log(chalk.green("✅ Project context initialized"));
-  } catch (error) {
-    console.log(
-      chalk.yellow(
-        "⚠️  Could not initialize project context, continuing with basic mode..."
-      )
-    );
-    ollamaClient = new OllamaInterface({ rootPath: process.cwd() });
-  }
-}
-
-// Wrap commands with initialization
-function wrapCommand(fn) {
-  return async (...args) => {
-    if (!ollamaClient) await initialize();
-    return fn(...args);
-  };
-}
 
 program
-  .name("saber-code")
-  .description(
-    "🤖 AI-powered code assistant with file editing and project analysis"
-  )
-  .version("1.0.0");
-
-// Interactive Chat Command
-program
-  .command("chat")
-  .description("Start an interactive coding session")
-  .option("-m, --model <model>", "Model to use", "codellama:13b")
-  .option("-t, --temperature <number>", "Temperature", "0.7")
-  .action(
-    wrapCommand(async (options) => {
-      console.log(chalk.blue.bold("\n🚀 Saber Code Assistant"));
-      console.log(
-        chalk.gray(
-          `Model: ${options.model} | Temperature: ${options.temperature}\n`
-        )
-      );
-      console.log(chalk.gray('Type "help" for commands, "quit" to exit.\n'));
-
-      const messages = [];
-
-      while (true) {
-        const { userInput } = await inquirer.prompt([
-          {
-            type: "input",
-            name: "userInput",
-            message: chalk.green("💬 You:"),
-          },
-        ]);
-
-        const input = userInput.trim();
-        if (["quit", "exit", "q"].includes(input.toLowerCase())) {
-          console.log(chalk.blue("👋 Goodbye!"));
-          break;
-        }
-
-        if (input === "help") {
-          showHelp();
-          continue;
-        }
-
-        if (input === "context") {
-          showContext();
-          continue;
-        }
-
-        if (input === "clear") {
-          messages.length = 0;
-          ollamaClient.clearContext();
-          console.log(chalk.yellow("🧹 Context cleared"));
-          continue;
-        }
-
-        // Handle special commands
-        if (input.startsWith("/load ")) {
-          const filePattern = input.replace("/load ", "").trim();
-          await loadFiles(filePattern);
-          continue;
-        }
-
-        if (input.startsWith("/analyze ")) {
-          const filePath = input.replace("/analyze ", "").trim();
-          await analyzeFile(filePath, options.model);
-          continue;
-        }
-
-        if (input.startsWith("/edit ")) {
-          const editDescription = input.replace("/edit ", "").trim();
-          await applyEdit(editDescription, options.model);
-          continue;
-        }
-
-        if (input === "/summary") {
-          await getProjectSummary(options.model);
-          continue;
-        }
-
-        if (input.startsWith("/search ")) {
-          const searchTerm = input.replace("/search ", "").trim();
-          await searchCode(searchTerm, options.model);
-          continue;
-        }
-
-        if (input === "/knowledge") {
-          await updateKnowledge();
-          continue;
-        }
-
-        if (input === "/history") {
-          await showHistory();
-          continue;
-        }
-
-        // Regular chat
-        messages.push({ role: "user", content: input });
-
-        try {
-          process.stdout.write(chalk.blue("🤖 Assistant: "));
-
-          const response = await ollamaClient.messages.create({
-            model: options.model,
-            messages: messages,
-            temperature: parseFloat(options.temperature),
-          });
-
-          const assistantResponse = response.content[0].text;
-          console.log(assistantResponse + "\n");
-
-          messages.push({ role: "assistant", content: assistantResponse });
-        } catch (error) {
-          console.error(chalk.red(`❌ Error: ${error.message}`));
-        }
-      }
-    })
-  );
-
-// Individual Commands
-program
-  .command("analyze <file>")
-  .description("Analyze a specific file")
-  .option("-m, --model <model>", "Model to use", "codellama:13b")
-  .action(
-    wrapCommand(async (file, options) => {
-      await analyzeFile(file, options.model);
-    })
-  );
+  .name('saber-code')
+  .description('CLI for Ollama: batch context, plan, implement, and quick tasks')
+  .version('1.0.0');
 
 program
-  .command("summary")
-  .description("Get project summary and analysis")
-  .option("-m, --model <model>", "Model to use", "codellama:13b")
-  .action(
-    wrapCommand(async (options) => {
-      await getProjectSummary(options.model);
-    })
-  );
-
-program
-  .command("edit <description>")
-  .description("Apply code changes based on natural language description")
-  .option("-m, --model <model>", "Model to use", "codellama:13b")
-  .action(
-    wrapCommand(async (description, options) => {
-      await applyEdit(description, options.model);
-    })
-  );
-
-program
-  .command("search <term>")
-  .description("Search for code patterns in the project")
-  .option("-m, --model <model>", "Model to use", "codellama:13b")
-  .action(
-    wrapCommand(async (term, options) => {
-      await searchCode(term, options.model);
-    })
-  );
-
-program
-  .command("load <patterns...>")
-  .description("Load files into context (supports glob patterns)")
-  .action(
-    wrapCommand(async (patterns) => {
-      await loadFiles(patterns);
-    })
-  );
-
-program
-  .command("context")
-  .description("Show current project context")
-  .action(
-    wrapCommand(() => {
-      showContext();
-    })
-  );
-
-program
-  .command("models")
-  .description("List available Ollama models")
-  .action(
-    wrapCommand(async () => {
-      try {
-        const models = await ollamaClient.listModels();
-        console.log(chalk.blue.bold("📚 Available Models:"));
-        models.forEach((model) => {
-          console.log(
-            `  ${chalk.green("•")} ${model.name} ${chalk.gray(
-              `(${model.size})`
-            )}`
-          );
-        });
-      } catch (error) {
-        console.error(chalk.red(`❌ Error: ${error.message}`));
-      }
-    })
-  );
-
-program
-  .command("knowledge")
-  .description("Show or update project knowledge base")
-  .option("-u, --update", "Update knowledge base with current context")
-  .action(
-    wrapCommand(async (options) => {
-      if (options.update) {
-        await updateKnowledge();
-      } else {
-        await showKnowledge();
-      }
-    })
-  );
-
-program
-  .command("history")
-  .description("Show chat history")
-  .action(
-    wrapCommand(async () => {
-      await showHistory();
-    })
-  );
-
-// Helper Functions
-function showHelp() {
-  console.log("\n" + chalk.blue.bold("🛠️  Available Commands:"));
-  console.log(chalk.green("  General:"));
-  console.log("    help     - Show this help message");
-  console.log("    context  - Show current project context");
-  console.log("    clear    - Clear conversation context");
-  console.log("    quit     - Exit the chat");
-
-  console.log(chalk.green("\n  Code Actions:"));
-  console.log("    /load <pattern>    - Load files (e.g., /load src/**/*.js)");
-  console.log("    /analyze <file>    - Analyze specific file");
-  console.log("    /edit <description> - Apply code changes");
-  console.log("    /summary           - Get project summary");
-  console.log("    /search <term>     - Search for code patterns");
-
-  console.log(chalk.green("\n  Knowledge & History:"));
-  console.log("    /knowledge - Update project knowledge base");
-  console.log("    /history   - Show recent chat history");
-
-  console.log(chalk.green("\n  Examples:"));
-  console.log("    /load package.json src/index.js");
-  console.log("    /analyze src/utils/helpers.js");
-  console.log('    /edit "add error handling to the main function"');
-  console.log('    /search "function getUser"');
-  console.log("");
-}
-
-function showContext() {
-  const context = ollamaClient.getContext();
-  console.log("\n" + chalk.blue.bold("📁 Project Context:"));
-  console.log(
-    `  Project: ${chalk.green(
-      context.projectSummary?.projectName || "Unknown"
-    )}`
-  );
-  console.log(
-    `  Files: ${chalk.cyan(context.projectSummary?.fileCount || 0)} total`
-  );
-  console.log(
-    `  Loaded: ${chalk.cyan(
-      context.currentFiles?.length || 0
-    )} files in context`
-  );
-
-  if (context.currentFiles.length > 0) {
-    console.log(chalk.green("\n  Loaded Files:"));
-    context.currentFiles.forEach((file) => {
-      console.log(`    • ${file.path} ${chalk.gray(`(${file.lines} lines)`)}`);
-    });
-  }
-
-  if (context.recentChanges.length > 0) {
-    console.log(chalk.yellow("\n  Recent Changes:"));
-    context.recentChanges.slice(-3).forEach((change) => {
-      console.log(
-        `    • ${change.operation.filePath} ${chalk.gray(
-          `(${change.operation.operation})`
-        )}`
-      );
-    });
-  }
-  console.log("");
-}
-
-async function loadFiles(patterns) {
-  try {
-    const patternList = Array.isArray(patterns) ? patterns : [patterns];
-    console.log(chalk.blue(`📂 Loading files: ${patternList.join(", ")}`));
-
-    const files = await ollamaClient.loadFiles(patternList);
-    console.log(chalk.green(`✅ Loaded ${files.length} files into context`));
-
-    files.forEach((file) => {
-      console.log(
-        `   ${chalk.green("•")} ${file.path} ${chalk.gray(
-          `(${file.lines} lines)`
-        )}`
-      );
-    });
-    console.log("");
-  } catch (error) {
-    console.error(chalk.red(`❌ Error loading files: ${error.message}`));
-  }
-}
-
-async function analyzeFile(filePath, model = "codellama:13b") {
-  try {
-    console.log(chalk.blue(`🔍 Analyzing ${filePath}...\n`));
-    const response = await ollamaClient.analyzeCode(filePath, model);
-    const analysis = response.content[0].text;
-    console.log(chalk.green.bold("📊 Analysis Results:"));
-    console.log(analysis + "\n");
-  } catch (error) {
-    console.error(chalk.red(`❌ Error analyzing file: ${error.message}`));
-  }
-}
-
-async function getProjectSummary(model = "codellama:13b") {
-  try {
-    console.log(chalk.blue("📊 Generating project summary...\n"));
-    const response = await ollamaClient.getProjectSummary(model);
-    const summary = response.content[0].text;
-    console.log(chalk.green.bold("🏗️  Project Summary:"));
-    console.log(summary + "\n");
-  } catch (error) {
-    console.error(chalk.red(`❌ Error generating summary: ${error.message}`));
-  }
-}
-
-async function applyEdit(description, model = "codellama:13b") {
-  try {
-    console.log(chalk.blue(`✏️  Applying edit: ${description}\n`));
-    const result = await ollamaClient.applyCodeChanges(description, model);
-
-    if (result.success) {
-      console.log(chalk.green.bold("✅ Edit applied successfully!"));
-      console.log(chalk.gray("Reasoning: ") + result.reasoning + "\n");
-      console.log(chalk.green("Operations performed:"));
-      result.operations.forEach((op) => {
-        const status = op.success ? chalk.green("✅") : chalk.red("❌");
-        console.log(`  ${status} ${op.message || op.error}`);
-      });
-    } else {
-      console.error(chalk.red.bold("❌ Failed to apply edit:"));
-      if (result.parsingError) {
-        console.log(chalk.yellow("🤖 AI returned invalid JSON format."));
-      }
-      console.error(chalk.red(result.error));
-      if (result.rawResponse) {
-        console.log(chalk.yellow("\n📝 Raw AI response:"));
-        console.log(result.rawResponse);
-      }
+  .command('chat')
+  .description('Interactive chat with streaming output')
+  .option('-m, --model <model>', 'Ollama model', 'codellama:13b')
+  .option('--no-stream', 'Disable streaming')
+  .action(async (options) => {
+    try {
+      await runChat({ model: options.model, stream: options.stream });
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
+      process.exitCode = 1;
     }
-    console.log("");
-  } catch (error) {
-    console.error(chalk.red(`❌ Error applying edit: ${error.message}`));
-  }
-}
-
-async function searchCode(term, model = "codellama:13b") {
-  try {
-    console.log(chalk.blue(`🔍 Searching for: "${term}"\n`));
-    const response = await ollamaClient.searchCode(term, model);
-    const results = response.content[0].text;
-    console.log(chalk.green.bold("🔎 Search Results:"));
-    console.log(results + "\n");
-  } catch (error) {
-    console.error(chalk.red(`❌ Error searching code: ${error.message}`));
-  }
-}
-
-async function updateKnowledge() {
-  try {
-    console.log(chalk.blue("🧠 Updating project knowledge base..."));
-    const result = await ollamaClient.refreshKnowledge();
-    if (result.success) {
-      console.log(chalk.green("✅ Knowledge base updated!"));
-      console.log(chalk.gray("Check .saber-chat-history/intro_to_project.md"));
-    } else {
-      console.error(chalk.red("❌ Failed to update knowledge:", result.error));
-    }
-  } catch (error) {
-    console.error(chalk.red("❌ Error:", error.message));
-  }
-}
-
-async function showKnowledge() {
-  try {
-    const knowledge = await ollamaClient.getKnowledge();
-    if (knowledge) {
-      console.log(chalk.blue.bold("📚 Project Knowledge Base:"));
-      console.log(knowledge);
-    } else {
-      console.log(
-        chalk.yellow(
-          'No knowledge base found. Use "saber-code knowledge --update" to create one.'
-        )
-      );
-    }
-  } catch (error) {
-    console.error(chalk.red("❌ Error:", error.message));
-  }
-}
-
-async function showHistory() {
-  const context = ollamaClient.getContext();
-  const history = context.conversationHistory;
-  console.log(chalk.blue.bold("💬 Chat History:"));
-  console.log(chalk.gray(`Total messages: ${history.length}\n`));
-  history.slice(-10).forEach((msg) => {
-    const prefix =
-      msg.role === "user" ? chalk.green("You:") : chalk.blue("AI:");
-    const time = new Date(msg.timestamp).toLocaleTimeString();
-    console.log(
-      `${chalk.gray(time)} ${prefix} ${msg.content.substring(0, 100)}...`
-    );
   });
-}
 
-// Initialize and run
-initialize()
-  .then(() => {
-    program.parse();
-  })
-  .catch(console.error);
+program
+  .command('plan <goal>')
+  .description('Batch context, build plan, and optionally execute')
+  .option('-m, --model <model>', 'Ollama model', 'codellama:13b')
+  .option('-l, --load <patterns...>', 'Glob patterns to load into context')
+  .option('-e, --execute', 'Execute plan after creating')
+  .option('-y, --yes', 'Skip confirmation when executing')
+  .option('--continue-on-error', 'Continue plan execution on step failure')
+  .action(async (goal, options) => {
+    try {
+      await runPlan(goal, {
+        model: options.model,
+        load: options.load,
+        execute: options.execute,
+        yes: options.yes,
+        continueOnError: options.continueOnError
+      });
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('exec')
+  .description('Execute the saved plan')
+  .option('--continue-on-error', 'Continue on step failure')
+  .action(async (options) => {
+    try {
+      await runExec({ continueOnError: options.continueOnError });
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('search <term>')
+  .description('Search for pattern in files (grep-like)')
+  .option('-g, --glob <pattern>', 'File glob', '**/*')
+  .option('-n, --max-results <n>', 'Max matches', '50')
+  .option('--limit <n>', 'Max lines to show', '30')
+  .action(async (term, options) => {
+    try {
+      await runSearch(term, {
+        glob: options.glob,
+        maxResults: parseInt(options.maxResults, 10) || 50,
+        limit: parseInt(options.limit, 10) || 30
+      });
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('analyze <file>')
+  .description('Analyze a file with AI')
+  .option('-m, --model <model>', 'Ollama model', 'codellama:13b')
+  .action(async (file, options) => {
+    try {
+      await runAnalyze(file, { model: options.model });
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('models')
+  .description('List available Ollama models')
+  .action(async () => {
+    try {
+      await runModels();
+    } catch (e) {
+      process.exitCode = 1;
+    }
+  });
+
+program.parse();
