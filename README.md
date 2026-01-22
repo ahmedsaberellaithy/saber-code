@@ -63,6 +63,7 @@ Start an interactive session with streaming AI responses.
 saber-code chat
 saber-code chat --model mistral
 saber-code chat --no-stream
+saber-code chat --verbose  # Show API communications and timing
 ```
 
 **Chat Commands:**
@@ -103,6 +104,7 @@ saber-code plan "Add tests" -m mistral -l "src/**/*.js" -e
 - `-e, --execute` - Execute plan after creating
 - `-y, --yes` - Skip confirmation when executing
 - `--continue-on-error` - Continue execution on step failure
+- `-v, --verbose` - Show API communications, prompts, and timing
 
 **Output:**
 ```
@@ -437,6 +439,47 @@ Plans are saved as JSON with this structure:
 - `search` - Search files
 - `glob` - Find files by pattern
 - `shell` - Run shell command
+
+## Verbose Mode 📊
+
+Use `--verbose` flag to see detailed API communications, timing, and context information:
+
+```bash
+saber-code chat --verbose
+saber-code plan "goal" --verbose
+```
+
+**Verbose output shows:**
+- 📤 API Request details (URL, model, options)
+- 📥 API Response (status, duration, data preview)
+- 💭 Prompt being sent (messages, token count)
+- 📚 Context information (files, messages, token size)
+- ⏱️ Timing for each operation
+- 📊 Streaming stats (chunks, characters)
+
+**Example verbose output:**
+```
+💭 Prompt to Model:
+  Messages: 3
+  Estimated tokens: 1250
+  [1] SYSTEM: You are a helpful coding assistant...
+  [2] USER: Explain the Agent class
+  [3] ASSISTANT: ...
+
+📚 Context:
+  Files: 5
+  Messages: 2
+  Size: 1250 tokens
+
+📤 API Request:
+  POST http://localhost:11434/api/generate
+  Body: {"model":"codellama:13b","prompt":"...","stream":true}
+
+📡 Streaming started...
+📊 Chunks: 10, Chars: 250
+⏱️  Stream duration: 2.45s
+📊 Total chunks: 45, Total chars: 1200
+```
 
 ## Troubleshooting
 

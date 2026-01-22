@@ -7,6 +7,7 @@ const { Config, Agent } = require('../../core');
 const { createSpinner, chalk } = require('../ui');
 const { glob } = require('glob');
 const { FileUtils } = require('../../utils/fileUtils');
+const Logger = require('../../utils/logger');
 
 const DEFAULT_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/coverage/**'];
 
@@ -57,10 +58,16 @@ async function runChat(options = {}) {
   if (options.model) config.override({ ollama: { defaultModel: options.model } });
 
   const agent = new Agent(config);
+  const verbose = options.verbose || false;
+  agent.setVerbose(verbose);
 
   console.log(chalk.blue.bold('\nSaber Code Chat'));
-  console.log(chalk.gray('Model: ' + config.ollama.defaultModel + '\n'));
-  console.log(chalk.gray('Type "help" for commands, "quit" to exit.\n'));
+  console.log(chalk.gray('Model: ' + config.ollama.defaultModel));
+  if (verbose) {
+    console.log(chalk.gray('Verbose mode: ON - showing API communications and timing\n'));
+  } else {
+    console.log(chalk.gray('Type "help" for commands, "quit" to exit. Use --verbose to see API details.\n'));
+  }
 
   while (true) {
     const { userInput } = await inquirer.prompt([

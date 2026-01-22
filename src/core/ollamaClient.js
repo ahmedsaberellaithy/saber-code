@@ -1,4 +1,6 @@
 const axios = require('axios');
+const chalk = require('chalk');
+const Logger = require('../utils/logger');
 
 /**
  * Clean Ollama API client with streaming support.
@@ -16,6 +18,12 @@ class OllamaClient {
       timeout,
       headers: { 'Content-Type': 'application/json' }
     });
+    this.verbose = false;
+  }
+
+  setVerbose(enabled) {
+    this.verbose = enabled;
+    Logger.setVerbose(enabled);
   }
 
   get defaultModel() {
@@ -70,28 +78,81 @@ class OllamaClient {
     };
 
     const timeout = this.config.getModelTimeout(model);
+    const startTime = Date.now();
 
     try {
       if (!stream) {
+        Logger.apiRequest('POST', `${this.config.ollama.baseURL}/api/generate`, {
+          model,
+          prompt: prompt.substring(0, 100) + '...',
+          stream: false,
+          options: body.options
+        });
+
         const res = await this.client.post('/api/generate', body, {
           timeout,
           timeoutErrorMessage: `Ollama timeout: ${model}. Try a smaller model.`
         });
+        
+        const duration = Date.now() - startTime;
         const d = res.data;
-        return {
+        const response = {
           content: d.response ?? '',
           model: d.model,
           done: d.done ?? true
         };
+
+        Logger.apiResponse(200, {
+          model: d.model,
+          responseLength: response.content.length,
+          done: d.done
+        }, duration);
+
+        if (this.verbose) {
+          console.log(chalk.cyan(`\n⏱️  Total time: ${(duration / 1000).toFixed(2)}s`));
+          console.log(chalk.gray(`📊 Response length: ${response.content.length} chars\n`));
+        }
+
+        return response;
       }
 
+      Logger.apiRequest('POST', `${this.config.ollama.baseURL}/api/generate`, {
+        model,
+        prompt: prompt.substring(0, 100) + '...',
+        stream: true,
+        options: body.options
+      });
+
+      const streamStartTime = Date.now();
       const res = await this.client.post('/api/generate', body, {
         timeout,
         responseType: 'stream',
         timeoutErrorMessage: `Ollama timeout: ${model}. Try a smaller model.`
       });
 
-      return this._streamNdjson(res.data, 'response');
+      if (this.verbose) {
+        console.log(chalk.cyan(`\n📡 Streaming started...`));
+      }
+
+      const self = this;
+      const baseStream = this._streamNdjson(res.data, 'response');
+      return (async function* () {
+        let totalChunks = 0;
+        let totalChars = 0;
+        for await (const item of baseStream) {
+          totalChunks++;
+          totalChars += item.chunk.length;
+          if (self.verbose && totalChunks % 10 === 0) {
+            process.stdout.write(chalk.gray(`\r📊 Chunks: ${totalChunks}, Chars: ${totalChars}`));
+          }
+          yield item;
+        }
+        const streamDuration = Date.now() - streamStartTime;
+        if (self.verbose) {
+          console.log(chalk.cyan(`\n⏱️  Stream duration: ${(streamDuration / 1000).toFixed(2)}s`));
+          console.log(chalk.gray(`📊 Total chunks: ${totalChunks}, Total chars: ${totalChars}\n`));
+        }
+      })();
     } catch (err) {
       if (err.code === 'ECONNABORTED') {
         throw new Error(`Ollama timeout: ${model} is too slow. Try a smaller model.`);

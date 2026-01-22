@@ -9,6 +9,7 @@ const { TokenCounter } = require('./TokenCounter');
 const { ContextManager } = require('./ContextManager');
 const { createRegistry } = require('../tools');
 const { FileUtils } = require('../utils/fileUtils');
+const Logger = require('../utils/logger');
 
 const SYSTEM_PROMPT = `You are a helpful coding assistant running locally via Ollama. You have access to the project context (loaded files, recent changes, conversation history). Be concise and accurate. When editing code, suggest specific changes.`;
 
@@ -30,6 +31,13 @@ class Agent {
     this.context = opts.contextManager || new ContextManager(this.config, this.tokens);
     this.ollama = opts.ollamaClient || new OllamaClient(this.config);
     this.tools = opts.toolRegistry || createRegistry();
+    this.verbose = false;
+  }
+
+  setVerbose(enabled) {
+    this.verbose = enabled;
+    this.ollama.setVerbose(enabled);
+    Logger.setVerbose(enabled);
   }
 
   _toolContext() {
@@ -104,13 +112,32 @@ class Agent {
   async chat(userMessage, options = {}) {
     const stream = options.stream ?? false;
     const model = options.model ?? this.ollama.defaultModel;
+    const startTime = Date.now();
 
     this.context.addMessage('user', userMessage);
 
     const messages = this._buildMessages(userMessage, options);
+    const promptText = this.ollama.messagesToPrompt(messages);
+    const tokenCount = this.tokens.count(promptText);
+
+    if (this.verbose) {
+      Logger.prompt(messages, tokenCount);
+      Logger.context(
+        tokenCount,
+        this.context.getFiles().length,
+        this.context.getMessages().length
+      );
+      console.log(chalk.magenta(`\n💬 Sending to Ollama (${model})...\n`));
+    }
+
     const response = stream
       ? await this.ollama.chat(messages, { ...options, model, stream: true })
       : await this.ollama.chat(messages, { ...options, model, stream: false });
+
+    if (!stream && this.verbose) {
+      const duration = Date.now() - startTime;
+      console.log(chalk.cyan(`\n⏱️  Total chat time: ${(duration / 1000).toFixed(2)}s\n`));
+    }
 
     if (stream) {
       let full = '';
