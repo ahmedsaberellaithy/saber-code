@@ -6,6 +6,7 @@ const {
   runChat,
   runPlan,
   runExec,
+  runListPlans,
   runSearch,
   runAnalyze,
   runModels
@@ -56,12 +57,12 @@ program
   });
 
 program
-  .command('exec')
-  .description('Execute the saved plan')
+  .command('exec [plan-path]')
+  .description('Execute a plan (latest if no path provided)')
   .option('--continue-on-error', 'Continue on step failure')
-  .action(async (options) => {
+  .action(async (planPath, options) => {
     try {
-      await runExec({ continueOnError: options.continueOnError });
+      await runExec(planPath, { continueOnError: options.continueOnError });
     } catch (e) {
       console.error(chalk.red('Error: ' + e.message));
       process.exitCode = 1;
@@ -107,6 +108,18 @@ program
     try {
       await runModels();
     } catch (e) {
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('plans')
+  .description('List all saved plans')
+  .action(async () => {
+    try {
+      await runListPlans();
+    } catch (e) {
+      console.error(chalk.red('Error: ' + e.message));
       process.exitCode = 1;
     }
   });

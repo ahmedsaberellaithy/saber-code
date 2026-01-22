@@ -44,15 +44,39 @@ async function runPlan(goal, options = {}) {
 
   const spinner = createSpinner('Creating plan...').start();
   try {
-    const plan = await planManager.create(goal, { model: options.model });
-    spinner.succeed('Plan created and saved.');
-    console.log(chalk.blue.bold('\nPlan: ') + (plan.goal || goal));
-    console.log(chalk.gray('Steps: ' + (plan.steps || []).length + '\n'));
+    const { plan, planPath, filename } = await planManager.create(goal, { model: options.model });
+    spinner.stop();
+
+    // Show plan preview
+    console.log(chalk.blue.bold('\n📋 Plan Preview:'));
+    console.log(chalk.blue.bold('Goal: ') + (plan.goal || goal));
+    console.log(chalk.gray('Steps: ' + (plan.steps || []).length));
+    console.log(chalk.gray('Filename: ' + filename));
+    console.log(chalk.gray('Path: ' + planPath + '\n'));
+
     if (plan.steps && plan.steps.length) {
+      console.log(chalk.yellow('Steps:'));
       plan.steps.forEach((s, i) => {
-        console.log('  ' + (i + 1) + '. ' + (s.tool || '?') + ' ' + JSON.stringify(s.args || {}));
+        const argsPreview = JSON.stringify(s.args || {}).substring(0, 80);
+        console.log('  ' + chalk.cyan((i + 1) + '.') + ' ' + chalk.green(s.tool || '?') + ' ' + chalk.gray(argsPreview + (argsPreview.length >= 80 ? '...' : '')));
       });
       console.log('');
+    }
+
+    // Show full plan JSON
+    console.log(chalk.gray('Full plan JSON:'));
+    console.log(chalk.gray('─'.repeat(60)));
+    console.log(JSON.stringify(plan, null, 2));
+    console.log(chalk.gray('─'.repeat(60) + '\n'));
+
+    // Ask to save
+    const shouldSave = options.yes || (await promptConfirm('Save this plan?', true));
+    if (shouldSave) {
+      await planManager.savePlan(plan, planPath);
+      console.log(chalk.green('✅ Plan saved to: ' + planPath + '\n'));
+    } else {
+      console.log(chalk.yellow('Plan not saved.\n'));
+      return { plan, planPath: null };
     }
 
     if (options.execute && (options.yes || (await promptConfirm('Execute this plan now?', false)))) {
@@ -69,7 +93,7 @@ async function runPlan(goal, options = {}) {
       console.log('');
     }
 
-    return plan;
+    return { plan, planPath };
   } catch (e) {
     spinner.fail(e.message);
     throw e;

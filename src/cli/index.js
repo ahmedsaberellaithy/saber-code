@@ -6,6 +6,7 @@ const ui = require('./ui');
 const { runChat, showHelp, showContext } = require('./commands/chat');
 const { runPlan } = require('./commands/plan');
 const { runExec } = require('./commands/exec');
+const { runListPlans } = require('./commands/plans');
 const { runSearch, runAnalyze, runModels } = require('./commands/quick');
 
 module.exports = {
@@ -15,6 +16,7 @@ module.exports = {
   showContext,
   runPlan,
   runExec,
+  runListPlans,
   runSearch,
   runAnalyze,
   runModels
