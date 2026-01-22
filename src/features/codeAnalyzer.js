@@ -46,7 +46,8 @@ class CodeAnalyzer {
 
   async readFile(filePath) {
     try {
-      const content = await this.fileUtils.readFile(filePath);
+      // fileUtils.readFile defaults to utf8 encoding
+      const content = await this.fileUtils.readFile(filePath, 'utf8');
       return {
         path: filePath,
         content: content,
@@ -151,8 +152,15 @@ class CodeAnalyzer {
 
     const files = [];
     for (const pattern of configPatterns) {
-      const matches = await glob(pattern, { cwd: this.rootPath, nocase: true });
-      files.push(...matches);
+      try {
+        const matches = await glob(pattern, { cwd: this.rootPath, nocase: true });
+        if (Array.isArray(matches)) {
+          files.push(...matches);
+        }
+      } catch (error) {
+        // Skip patterns that fail
+        console.warn(`Failed to search for config pattern ${pattern}: ${error.message}`);
+      }
     }
     return files;
   }

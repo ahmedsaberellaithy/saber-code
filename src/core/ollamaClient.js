@@ -1,104 +1,171 @@
 const axios = require('axios');
 
+/**
+ * Clean Ollama API client with streaming support.
+ * Uses Config for baseURL, model, timeouts. Supports generate (stream + non-stream) and chat.
+ */
 class OllamaClient {
-  constructor(baseURL = 'http://localhost:11434', defaultModel = 'codellama:13b') {
-    this.baseURL = baseURL;
-    this.defaultModel = defaultModel;
-    
-    // Model-specific timeouts
-    this.modelTimeouts = {
-      'codellama:70b': 300000,
-      'llama2:70b': 300000,
-      'wizardcoder:15b': 180000,
-      'codellama:13b': 120000,
-      'default': 120000
-    };
-
+  /**
+   * @param {import('./Config').Config} config - Config instance (uses ollama settings)
+   */
+  constructor(config) {
+    this.config = config;
+    const { baseURL, timeout } = config.ollama;
     this.client = axios.create({
-      baseURL: this.baseURL,
-      timeout: 120000
+      baseURL,
+      timeout,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 
-  async generate(prompt, options = {}) {
-    const {
-      model = this.defaultModel,
-      temperature = 0.7,
-      top_p = 0.9,
-      max_tokens = 2048,
-      stream = false
-    } = options;
+  get defaultModel() {
+    return this.config.ollama.defaultModel;
+  }
 
-    const timeout = this.modelTimeouts[model] || this.modelTimeouts['default'];
-    
-    try {
-      const response = await this.client.post('/api/generate', {
-        model,
-        prompt,
-        stream,
-        options: {
-          temperature,
-          top_p,
-          num_predict: max_tokens
+  /**
+   * Convert messages (Claude-style) to single prompt for /api/generate.
+   * Uses Llama-style [INST], <<SYS>> tags.
+   */
+  messagesToPrompt(messages) {
+    return messages
+      .map((msg) => {
+        switch (msg.role) {
+          case 'user':
+            return `[INST] ${msg.content} [/INST]`;
+          case 'assistant':
+            return msg.content;
+          case 'system':
+            return `<<SYS>>\n${msg.content}\n<</SYS>>`;
+          default:
+            return msg.content;
         }
-      }, {
-        timeout: timeout,
-        timeoutErrorMessage: `Model ${model} is taking too long. Try a smaller model.`
+      })
+      .join('\n\n');
+  }
+
+  /**
+   * Generate completion. Non-streaming: returns full response. Streaming: async generator.
+   * @param {string} prompt
+   * @param {Object} options
+   * @param {string} [options.model]
+   * @param {number} [options.temperature]
+   * @param {number} [options.top_p]
+   * @param {number} [options.num_predict]
+   * @param {boolean} [options.stream]
+   * @returns {Promise<{content:string,model:string,done:boolean}>|AsyncGenerator<{chunk:string,done:boolean}>}
+   */
+  async generate(prompt, options = {}) {
+    const model = options.model ?? this.defaultModel;
+    const stream = options.stream ?? false;
+    const opts = this.config.ollama.generate;
+    const body = {
+      model,
+      prompt,
+      stream,
+      options: {
+        temperature: options.temperature ?? opts.temperature,
+        top_p: options.top_p ?? opts.top_p,
+        num_predict: options.num_predict ?? opts.num_predict
+      }
+    };
+
+    const timeout = this.config.getModelTimeout(model);
+
+    try {
+      if (!stream) {
+        const res = await this.client.post('/api/generate', body, {
+          timeout,
+          timeoutErrorMessage: `Ollama timeout: ${model}. Try a smaller model.`
+        });
+        const d = res.data;
+        return {
+          content: d.response ?? '',
+          model: d.model,
+          done: d.done ?? true
+        };
+      }
+
+      const res = await this.client.post('/api/generate', body, {
+        timeout,
+        responseType: 'stream',
+        timeoutErrorMessage: `Ollama timeout: ${model}. Try a smaller model.`
       });
 
-      return {
-        content: response.data.response,
-        model: response.data.model,
-        created_at: response.data.created_at,
-        done: response.data.done
-      };
-    } catch (error) {
-      if (error.code === 'ECONNABORTED') {
-        throw new Error(`Ollama timeout: ${model} is too slow. Try codellama:13b or mistral.`);
+      return this._streamNdjson(res.data, 'response');
+    } catch (err) {
+      if (err.code === 'ECONNABORTED') {
+        throw new Error(`Ollama timeout: ${model} is too slow. Try a smaller model.`);
       }
-      throw new Error(`Ollama API error: ${error.message}`);
+      if (err.code === 'ECONNREFUSED') {
+        throw new Error('Ollama is not running. Start it with: ollama serve');
+      }
+      throw new Error(`Ollama API error: ${err.message}`);
     }
   }
 
+  /**
+   * Chat: messages -> prompt -> generate. Same options as generate.
+   */
   async chat(messages, options = {}) {
     const prompt = this.messagesToPrompt(messages);
     return this.generate(prompt, options);
   }
 
-  messagesToPrompt(messages) {
-    return messages.map(msg => {
-      switch (msg.role) {
-        case 'user':
-          return `[INST] ${msg.content} [/INST]`;
-        case 'assistant':
-          return `${msg.content}`;
-        case 'system':
-          return `<<SYS>> ${msg.content} <</SYS>>`;
-        default:
-          return msg.content;
+  /**
+   * Parse NDJSON stream and yield { chunk, done } from field (e.g. 'response').
+   * @param {NodeJS.ReadableStream} stream
+   * @param {string} field - JSON field holding the chunk text
+   */
+  async *_streamNdjson(stream, field) {
+    let buffer = '';
+    for await (const chunk of stream) {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          const text = obj[field];
+          if (text != null) yield { chunk: text, done: obj.done ?? false };
+        } catch (_) {
+          // skip malformed lines
+        }
       }
-    }).join('\n\n');
+    }
+    if (buffer.trim()) {
+      try {
+        const obj = JSON.parse(buffer.trim());
+        const text = obj[field];
+        if (text != null) yield { chunk: text, done: obj.done ?? true };
+      } catch (_) {}
+    }
   }
 
   async listModels() {
     try {
-      const response = await this.client.get('/api/tags');
-      return response.data.models;
-    } catch (error) {
-      throw new Error(`Failed to list models: ${error.message}`);
+      const res = await this.client.get('/api/tags');
+      return res.data.models ?? [];
+    } catch (err) {
+      if (err.code === 'ECONNREFUSED') {
+        throw new Error('Ollama is not running. Start it with: ollama serve');
+      }
+      throw new Error(`Failed to list models: ${err.message}`);
     }
   }
 
   async getModelInfo(modelName) {
     try {
-      const response = await this.client.post('/api/show', {
-        name: modelName
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error(`Failed to get model info: ${error.message}`);
+      const res = await this.client.post('/api/show', { name: modelName });
+      return res.data;
+    } catch (err) {
+      if (err.code === 'ECONNREFUSED') {
+        throw new Error('Ollama is not running. Start it with: ollama serve');
+      }
+      throw new Error(`Failed to get model info: ${err.message}`);
     }
   }
 }
 
-module.exports = OllamaClient;
+module.exports = { OllamaClient };
