@@ -1,5 +1,23 @@
 # Saber Code CLI
 
+> ⚠️ **IMPORTANT: DEVELOPMENT STATUS WARNING** ⚠️
+> 
+> **THIS PROJECT IS UNDER ACTIVE DEVELOPMENT AND TESTING**
+> 
+> **DO NOT USE IN PRODUCTION OR ON IMPORTANT CODE**
+> 
+> - This tool can **modify, create, and delete files** on your system
+> - It is **NOT production-ready** and may contain bugs
+> - AI-generated plans may be incorrect or destructive
+> - **ONLY use in isolated, test, or contained environments**
+> - **ALWAYS backup your work** before running any operations
+> - **Review all plans carefully** before executing them
+> - Use version control and commit before using this tool
+> - Test in a sandbox, VM, or Docker container first
+> 
+> By using this tool, you accept full responsibility for any data loss or system changes.
+> The authors are not responsible for any damages caused by this software.
+
 A powerful CLI tool for Ollama that enables batch context loading, plan creation, and AI-powered code operations. Built with a clean, modular architecture inspired by Claude Code.
 
 ## Features
@@ -40,18 +58,60 @@ A powerful CLI tool for Ollama that enables batch context loading, plan creation
 
 ### Install Saber Code CLI
 
+⚠️ **Before installing, read the development status warning at the top of this README!**
+
 ```bash
 # Clone and install
 git clone <your-repo>
 cd saber-code-cli
 npm install
 
-# Optional: Install globally
-npm install -g .
+# DO NOT install globally until thoroughly tested in isolated environment
+# npm install -g .  # Only after testing
 
 # Verify installation
 saber-code --help
 ```
+
+### Recommended: Test in Isolated Environment
+
+```bash
+# Option 1: Docker container
+docker run -it --rm -v $(pwd):/workspace node:18 bash
+cd /workspace && npm install
+
+# Option 2: Test directory
+mkdir ~/saber-test && cd ~/saber-test
+git init
+# Test the CLI here first
+
+# Option 3: VM or dedicated test machine
+```
+
+## Safety Recommendations
+
+Before using any commands:
+
+1. **Commit your work**: `git add -A && git commit -m "Before saber-code"`
+2. **Review plans carefully**: Always check the plan preview before saving/executing
+3. **Use --verbose**: See exactly what will be done: `saber-code plan "goal" --verbose`
+4. **Test incrementally**: Start with small, specific goals
+5. **Backup important files**: Copy critical files before modifications
+6. **Use continue-on-error cautiously**: Understand that errors may cascade
+7. **Verify results**: Check files after execution
+
+## Safety Recommendations
+
+⚠️ **Before using any commands:**
+
+1. **Commit your work**: `git add -A && git commit -m "Before saber-code"`
+2. **Review plans carefully**: Always check the plan preview before saving/executing
+3. **Use --verbose**: See exactly what will be done: `saber-code plan "goal" --verbose`
+4. **Test incrementally**: Start with small, specific goals
+5. **Backup important files**: Copy critical files before modifications
+6. **Use continue-on-error cautiously**: Understand that errors may cascade
+7. **Verify results**: Check files after execution
+8. **Test in isolated environment**: Use a test directory or container
 
 ## Commands
 
