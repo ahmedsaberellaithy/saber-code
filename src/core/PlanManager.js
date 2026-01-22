@@ -5,18 +5,29 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { Agent } = require('./Agent');
+const Logger = require('../utils/logger');
+const chalk = require('chalk');
 
-const PLAN_PROMPT = `Given the goal and project context, produce a JSON plan with this exact structure (no markdown, no extra text):
+const PLAN_PROMPT = `You are creating an execution plan. Return ONLY valid JSON (no markdown, no explanations, no code blocks).
+
+The JSON must have this structure:
 {
-  "goal": "<goal string>",
+  "goal": "actual goal description here",
   "steps": [
-    { "tool": "read", "args": { "path": "..." } },
-    { "tool": "edit", "args": { "path": "...", "oldText": "...", "newText": "..." } },
-    { "tool": "write", "args": { "path": "...", "content": "..." } },
-    { "tool": "shell", "args": { "command": "..." } }
+    { "tool": "read", "args": { "path": "actual/file/path.js" } },
+    { "tool": "write", "args": { "path": "actual/file/path.js", "content": "actual file content" } }
   ]
 }
-Use only tools: read, write, edit, list, search, glob, shell. Be specific with paths and content.`;
+
+CRITICAL: 
+- Replace ALL placeholders with REAL values
+- Use actual file paths from the project context
+- Use actual content, not "..."
+- The goal must be the actual goal, not "<goal string>"
+- Each step must have real, executable arguments
+
+Available tools: read, write, edit, list, search, glob, shell.
+Be specific and concrete - no placeholders allowed.`;
 
 function stripJson(raw) {
   let s = typeof raw === 'string' ? raw : String(raw);
@@ -86,6 +97,12 @@ class PlanManager {
     this._plansDir = path.join(config.rootPath, '_saber_code_plans');
   }
 
+  setVerbose(enabled) {
+    if (this.agent) {
+      this.agent.setVerbose(enabled);
+    }
+  }
+
   async _ensurePlansDir() {
     await fs.mkdir(this._plansDir, { recursive: true });
   }
@@ -103,7 +120,21 @@ class PlanManager {
     );
 
     const userMsg = `Goal: ${goal}\n\n${PLAN_PROMPT}\n\n---\nProject context:\n${ctx || '(none)'}`;
+    
+    if (this.agent.verbose) {
+      console.log(chalk.magenta('\n🎯 Creating Plan:'));
+      console.log(chalk.gray(`  Goal: ${goal}`));
+      console.log(chalk.gray(`  Model: ${model}`));
+      console.log(chalk.gray(`  Context size: ${ctx ? ctx.length : 0} chars\n`));
+    }
+
+    const planStartTime = Date.now();
     const res = await this.agent.chat(userMsg, { model, stream: false });
+    const planDuration = Date.now() - planStartTime;
+
+    if (this.agent.verbose) {
+      console.log(chalk.cyan(`\n⏱️  Plan generation time: ${(planDuration / 1000).toFixed(2)}s\n`));
+    }
 
     const raw = res.content ?? '';
     const jsonStr = stripJson(raw);
@@ -124,20 +155,66 @@ class PlanManager {
     plan.goal = plan.goal || goal;
     plan.createdAt = plan.createdAt || new Date().toISOString();
 
+    // Validate plan - check for template/placeholder values
+    const validationErrors = [];
+    
+    if (!plan.goal || plan.goal === '<goal string>' || plan.goal === '...' || plan.goal.trim() === '') {
+      validationErrors.push('Goal is missing or contains placeholder');
+    }
+    
+    if (plan.steps.length === 0) {
+      validationErrors.push('Plan has no steps');
+    }
+    
+    // Check for placeholder values in steps
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i];
+      if (!step.tool) {
+        validationErrors.push(`Step ${i + 1}: missing tool`);
+        continue;
+      }
+      
+      if (!step.args) {
+        validationErrors.push(`Step ${i + 1}: missing args`);
+        continue;
+      }
+      
+      // Check for placeholder values
+      const argsStr = JSON.stringify(step.args);
+      if (argsStr.includes('"..."') || argsStr.includes('"<') || argsStr.includes('<goal') || argsStr.includes('<path>')) {
+        validationErrors.push(`Step ${i + 1} (${step.tool}): contains placeholder values like "..." or "<...>"`);
+      }
+      
+      // Check for empty or placeholder paths/content
+      if (step.args.path === '...' || step.args.path === '<path>' || (step.args.path && step.args.path.includes('...'))) {
+        validationErrors.push(`Step ${i + 1} (${step.tool}): path contains placeholder`);
+      }
+      
+      if (step.args.content === '...' || step.args.content === '<content>' || (step.args.content && step.args.content.includes('...'))) {
+        validationErrors.push(`Step ${i + 1} (${step.tool}): content contains placeholder`);
+      }
+      
+      if (step.args.command === '...' || step.args.command === '<command>') {
+        validationErrors.push(`Step ${i + 1} (${step.tool}): command contains placeholder`);
+      }
+    }
+    
+    if (validationErrors.length > 0) {
+      throw new Error(
+        `Plan validation failed - model returned template instead of real plan:\n${validationErrors.map(e => '  - ' + e).join('\n')}\n\n` +
+        `Suggestions:\n` +
+        `  - Make the goal more specific and detailed\n` +
+        `  - Try a different model: saber-code plan "goal" -m mistral\n` +
+        `  - Load more context: --load "src/**/*.js" "package.json"\n` +
+        `  - Break down into smaller goals`
+      );
+    }
+
     // Generate filename but don't save yet
     const filename = generatePlanFilename(goal);
     const planPath = path.join(this._plansDir, filename);
 
     return { plan, planPath, filename };
-  }
-
-  /**
-   * Save plan to disk.
-   */
-  async savePlan(plan, planPath) {
-    await this._ensurePlansDir();
-    await fs.writeFile(planPath, JSON.stringify(plan, null, 2), 'utf8');
-    return planPath;
   }
 
   /**
@@ -193,14 +270,12 @@ class PlanManager {
   }
 
   /**
-   * Save plan to disk with new filename.
+   * Save plan to disk.
    */
-  async save(plan) {
+  async savePlan(plan, planPath) {
     await this._ensurePlansDir();
-    const filename = generatePlanFilename(plan.goal);
-    const planPath = path.join(this._plansDir, filename);
     await fs.writeFile(planPath, JSON.stringify(plan, null, 2), 'utf8');
-    return { plan, planPath };
+    return planPath;
   }
 
   /**

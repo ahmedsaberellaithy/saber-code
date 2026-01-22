@@ -6,6 +6,7 @@ const { Config, Agent, PlanManager } = require('../../core');
 const { createSpinner, chalk, promptConfirm } = require('../ui');
 const { glob } = require('glob');
 const { FileUtils } = require('../../utils/fileUtils');
+const Logger = require('../../utils/logger');
 
 const DEFAULT_IGNORE = ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**', '**/coverage/**'];
 
@@ -33,7 +34,10 @@ async function runPlan(goal, options = {}) {
   if (options.model) config.override({ ollama: { defaultModel: options.model } });
 
   const agent = new Agent(config);
+  const verbose = options.verbose || false;
+  agent.setVerbose(verbose);
   const planManager = new PlanManager(config, agent);
+  planManager.setVerbose(verbose);
 
   const patterns = options.load ? (Array.isArray(options.load) ? options.load : [options.load]) : [];
   if (patterns.length) {

@@ -24,9 +24,14 @@ program
   .description('Interactive chat with streaming output')
   .option('-m, --model <model>', 'Ollama model', 'codellama:13b')
   .option('--no-stream', 'Disable streaming')
+  .option('-v, --verbose', 'Show API communications and timing')
   .action(async (options) => {
     try {
-      await runChat({ model: options.model, stream: options.stream });
+      await runChat({ 
+        model: options.model, 
+        stream: options.stream,
+        verbose: options.verbose
+      });
     } catch (e) {
       console.error(chalk.red('Error: ' + e.message));
       process.exitCode = 1;
@@ -41,6 +46,7 @@ program
   .option('-e, --execute', 'Execute plan after creating')
   .option('-y, --yes', 'Skip confirmation when executing')
   .option('--continue-on-error', 'Continue plan execution on step failure')
+  .option('-v, --verbose', 'Show API communications and timing')
   .action(async (goal, options) => {
     try {
       await runPlan(goal, {
@@ -48,7 +54,8 @@ program
         load: options.load,
         execute: options.execute,
         yes: options.yes,
-        continueOnError: options.continueOnError
+        continueOnError: options.continueOnError,
+        verbose: options.verbose
       });
     } catch (e) {
       console.error(chalk.red('Error: ' + e.message));
