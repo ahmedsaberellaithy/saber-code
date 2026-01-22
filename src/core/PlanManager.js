@@ -20,10 +20,59 @@ Use only tools: read, write, edit, list, search, glob, shell. Be specific with p
 
 function stripJson(raw) {
   let s = typeof raw === 'string' ? raw : String(raw);
-  const start = s.indexOf('{');
-  const end = s.lastIndexOf('}') + 1;
-  if (start === -1 || end <= start) return null;
-  return s.slice(start, end);
+  
+  // Try to extract from markdown code blocks
+  const codeBlockMatch = s.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    s = codeBlockMatch[1];
+  }
+  
+  // Find JSON object boundaries
+  let start = s.indexOf('{');
+  if (start === -1) return null;
+  
+  // Find matching closing brace
+  let depth = 0;
+  let end = start;
+  for (let i = start; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    if (s[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  
+  if (end <= start) return null;
+  let jsonStr = s.slice(start, end);
+  
+  // Fix common JSON issues
+  // Remove trailing commas before } or ]
+  jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+  // Fix single quotes to double quotes for keys
+  jsonStr = jsonStr.replace(/'([^']+)':/g, '"$1":');
+  // Fix unquoted keys (simple cases)
+  jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+  
+  return jsonStr;
+}
+
+function sanitizeFilename(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50);
+}
+
+function generatePlanFilename(goal) {
+  const date = new Date();
+  const dateStr = date.toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD
+  const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
+  const name = sanitizeFilename(goal || 'plan');
+  return `${name}-${dateStr}-${timeStr}.json`;
 }
 
 class PlanManager {
@@ -34,16 +83,16 @@ class PlanManager {
   constructor(config, agent) {
     this.config = config;
     this.agent = agent || new Agent(config);
-    this._planPath = config.planPath;
-    this._historyDir = config.historyDirPath;
+    this._plansDir = path.join(config.rootPath, '_saber_code_plans');
   }
 
-  async _ensureHistoryDir() {
-    await fs.mkdir(this._historyDir, { recursive: true });
+  async _ensurePlansDir() {
+    await fs.mkdir(this._plansDir, { recursive: true });
   }
 
   /**
    * Create plan from goal using Agent. Batches context, calls model, parses JSON.
+   * Returns plan without saving - use save() to persist.
    */
   async create(goal, options = {}) {
     const model = options.model ?? this.agent.ollama.defaultModel;
@@ -75,19 +124,34 @@ class PlanManager {
     plan.goal = plan.goal || goal;
     plan.createdAt = plan.createdAt || new Date().toISOString();
 
-    await this._ensureHistoryDir();
-    await fs.writeFile(this._planPath, JSON.stringify(plan, null, 2), 'utf8');
+    // Generate filename but don't save yet
+    const filename = generatePlanFilename(goal);
+    const planPath = path.join(this._plansDir, filename);
 
-    return plan;
+    return { plan, planPath, filename };
   }
 
   /**
-   * Load plan from disk.
+   * Save plan to disk.
    */
-  async load() {
+  async savePlan(plan, planPath) {
+    await this._ensurePlansDir();
+    await fs.writeFile(planPath, JSON.stringify(plan, null, 2), 'utf8');
+    return planPath;
+  }
+
+  /**
+   * Load plan from disk. If no path provided, loads the latest plan.
+   */
+  async load(planPath = null) {
+    if (!planPath) {
+      planPath = await this._findLatestPlan();
+      if (!planPath) return null;
+    }
+    
     try {
-      const raw = await fs.readFile(this._planPath, 'utf8');
-      return JSON.parse(raw);
+      const raw = await fs.readFile(planPath, 'utf8');
+      return { plan: JSON.parse(raw), planPath };
     } catch (e) {
       if (e.code === 'ENOENT') return null;
       throw e;
@@ -95,23 +159,78 @@ class PlanManager {
   }
 
   /**
-   * Save plan to disk.
+   * Find the latest plan file by creation time.
+   */
+  async _findLatestPlan() {
+    try {
+      const files = await fs.readdir(this._plansDir);
+      const planFiles = files.filter(f => f.endsWith('.json'));
+      if (planFiles.length === 0) return null;
+      
+      // Sort by filename (date/time) descending
+      planFiles.sort().reverse();
+      return path.join(this._plansDir, planFiles[0]);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * List all plan files.
+   */
+  async listPlans() {
+    try {
+      const files = await fs.readdir(this._plansDir);
+      const planFiles = files
+        .filter(f => f.endsWith('.json'))
+        .map(f => path.join(this._plansDir, f))
+        .sort()
+        .reverse();
+      return planFiles;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Save plan to disk with new filename.
    */
   async save(plan) {
-    await this._ensureHistoryDir();
-    await fs.writeFile(this._planPath, JSON.stringify(plan, null, 2), 'utf8');
-    return plan;
+    await this._ensurePlansDir();
+    const filename = generatePlanFilename(plan.goal);
+    const planPath = path.join(this._plansDir, filename);
+    await fs.writeFile(planPath, JSON.stringify(plan, null, 2), 'utf8');
+    return { plan, planPath };
   }
 
   /**
    * Execute plan steps via Agent's tool registry. Stops on first error unless options.continueOnError.
    */
-  async execute(planOrOptions = {}, options = {}) {
-    const plan = Array.isArray(planOrOptions?.steps)
-      ? planOrOptions
-      : await this.load();
+  async execute(planOrPathOrOptions = {}, options = {}) {
+    let plan, planPath;
+    
+    if (typeof planOrPathOrOptions === 'string') {
+      // Path provided
+      const loaded = await this.load(planOrPathOrOptions);
+      if (!loaded) throw new Error(`Plan not found: ${planOrPathOrOptions}`);
+      plan = loaded.plan;
+      planPath = loaded.planPath;
+    } else if (Array.isArray(planOrPathOrOptions?.steps)) {
+      // Plan object provided
+      plan = planOrPathOrOptions;
+      planPath = null;
+    } else {
+      // Load latest
+      const loaded = await this.load();
+      if (!loaded) {
+        throw new Error('No plan found in _saber_code_plans/. Create one with "saber-code plan <goal>".');
+      }
+      plan = loaded.plan;
+      planPath = loaded.planPath;
+    }
+    
     if (!plan || !Array.isArray(plan.steps)) {
-      throw new Error('No plan to execute. Create one with "saber-code plan <goal>".');
+      throw new Error('Invalid plan: missing steps array.');
     }
 
     const continueOnError = options.continueOnError ?? false;
@@ -133,15 +252,20 @@ class PlanManager {
       }
     }
 
-    return { plan, results, failedAt: null };
+    return { plan, planPath, results, failedAt: null };
   }
 
   /**
-   * Clear plan file.
+   * Clear plan file(s). If no path, clears latest.
    */
-  async clear() {
+  async clear(planPath = null) {
+    if (!planPath) {
+      planPath = await this._findLatestPlan();
+      if (!planPath) return this;
+    }
+    
     try {
-      await fs.unlink(this._planPath);
+      await fs.unlink(planPath);
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
     }

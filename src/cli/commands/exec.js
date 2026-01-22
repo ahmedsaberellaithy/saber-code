@@ -5,7 +5,7 @@
 const { Config, Agent, PlanManager } = require('../../core');
 const { createSpinner, chalk } = require('../ui');
 
-async function runExec(options = {}) {
+async function runExec(planPathOrOptions = null, options = {}) {
   const rootPath = process.cwd();
   const config = new Config(rootPath);
   await config.load();
@@ -13,18 +13,29 @@ async function runExec(options = {}) {
   const agent = new Agent(config);
   const planManager = new PlanManager(config, agent);
 
-  const plan = await planManager.load();
-  if (!plan || !plan.steps || !plan.steps.length) {
-    console.error(chalk.red('No plan found. Create one with: saber-code plan <goal>\n'));
+  // Handle both: exec <path> and exec --continue-on-error
+  let planPath = null;
+  if (typeof planPathOrOptions === 'string') {
+    planPath = planPathOrOptions;
+  } else if (planPathOrOptions && typeof planPathOrOptions === 'object' && !Array.isArray(planPathOrOptions)) {
+    // Options passed as first arg
+    options = planPathOrOptions;
+  }
+
+  const loaded = await planManager.load(planPath);
+  if (!loaded || !loaded.plan || !loaded.plan.steps || !loaded.plan.steps.length) {
+    console.error(chalk.red('No plan found in _saber_code_plans/. Create one with: saber-code plan <goal>\n'));
     process.exitCode = 1;
     return;
   }
 
-  console.log(chalk.blue.bold('Executing plan: ') + (plan.goal || '') + '\n');
+  const { plan, planPath: loadedPath } = loaded;
+  console.log(chalk.blue.bold('Executing plan: ') + (plan.goal || ''));
+  console.log(chalk.gray('File: ' + loadedPath + '\n'));
 
   const spinner = createSpinner('Running steps...').start();
   try {
-    const result = await planManager.execute(plan, { continueOnError: !!options.continueOnError });
+    const result = await planManager.execute(loadedPath, { continueOnError: !!options.continueOnError });
     spinner.stop();
 
     const ok = result.results.filter((r) => r.ok).length;
