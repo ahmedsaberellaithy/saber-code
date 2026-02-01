@@ -8,14 +8,27 @@
   },
   "scripts": {
     "start": "node cli.js",
-    "test": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test": "npm run test:component && npm run test:unit",
     "test:unit": "jest --config test/jest.config.js --testPathPattern=\"test/unit\"",
-    "test:integration": "jest --config test/jest.config.js --testPathPattern=\"test/integration\" --runInBand",
-    "test:e2e": "jest --config test/jest.config.js --testPathPattern=\"test/e2e\" --runInBand",
-    "test:all": "jest --config test/jest.config.js --runInBand",
+    "test:e2e": "jest --config test/jest.config.js --testPathPattern=\"test/e2e/cli-commands\" --runInBand",
+    "test:e2e:all": "jest --config test/jest.config.js --testPathPattern=\"test/e2e\" --runInBand",
+    "test:tdd": "jest --config test/jest.config.js --testPathPattern=\"test/tdd\" --runInBand",
+    "test:all": "npm run test:component && npm run test:unit && npm run test:e2e",
     "test:watch": "jest --config test/jest.config.js --watch",
-    "test:coverage": "jest --config test/jest.config.js --coverage --runInBand"
+    "test:coverage": "jest --config test/jest.config.js --coverage --testPathPattern=\"test/(unit|e2e)\" --runInBand",
+    "test:component": "node test-components.js",
+    "prepublishOnly": "npm test",
+    "test:package": "node test-package.js",
+    "package:check": "npm pack --dry-run"
   },
+  "files": [
+    "cli.js",
+    "index.js",
+    "src/",
+    ".env.example",
+    "README.md",
+    "LICENSE"
+  ],
   "devDependencies": {
     "jest": "^29.7.0"
   },
@@ -32,6 +45,7 @@
     "axios": "^1.5.0",
     "chalk": "^4.1.2",
     "commander": "^11.1.0",
+    "dotenv": "^17.2.3",
     "glob": "^10.3.0",
     "inquirer": "^8.2.6"
   },

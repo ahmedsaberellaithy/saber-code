@@ -77,7 +77,7 @@ describe('Agent', () => {
       const mockResponse = {
         data: {
           response: 'Hello!',
-          model: 'codellama:13b',
+          model: config.ollama.defaultModel,
           done: true
         }
       };

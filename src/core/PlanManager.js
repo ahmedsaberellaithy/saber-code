@@ -322,12 +322,14 @@ class PlanManager {
       } catch (e) {
         results.push({ index: i, tool, args, ok: false, error: e.message });
         if (!continueOnError) {
-          return { plan, results, failedAt: i };
+          return { plan, results, failedAt: i, completed: false };
         }
       }
     }
 
-    return { plan, planPath, results, failedAt: null };
+    // Check if all steps succeeded
+    const allSucceeded = results.every(r => r.ok);
+    return { plan, planPath, results, failedAt: null, completed: allSucceeded };
   }
 
   /**

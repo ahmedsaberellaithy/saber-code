@@ -1,0 +1,53 @@
+# Test files
+test/
+test-components.js
+test-package.js
+test-package.sh
+*.test.js
+
+# Documentation (use README.md only)
+docs/
+REVIEW_SUMMARY.md
+TEST_IMPLEMENTATION_SUMMARY.md
+context-test.txt
+
+# Development files
+.env
+.env.local
+.vscode/
+.idea/
+.cursor/
+
+# Build artifacts
+coverage/
+.nyc_output/
+dist/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific
+_saber_code_plans/
+.saber-chat-history/
+node_modules/
+
+# Package testing
+saber-code-cli-*.tgz
+package-test-dir/

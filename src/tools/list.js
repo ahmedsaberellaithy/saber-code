@@ -18,7 +18,7 @@ async function execute(ctx, args) {
     type: e.isDirectory() ? 'dir' : 'file'
   }));
 
-  return { path: dir, entries: items };
+  return { path: dir, entries: items, files: items };
 }
 
 module.exports = { name, description, schema, execute };

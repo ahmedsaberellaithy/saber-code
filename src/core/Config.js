@@ -1,11 +1,14 @@
 const path = require('path');
 const fs = require('fs').promises;
 
+// Load environment variables from .env file
+require('dotenv').config();
+
 const DEFAULT_CONFIG = {
   ollama: {
-    baseURL: process.env.OLLAMA_HOST || 'http://localhost:11434',
-    defaultModel: process.env.SABER_MODEL || 'codellama:13b',
-    timeout: 120000,
+    baseURL: process.env.SABER_CODE_BASE_URL || process.env.OLLAMA_HOST || 'http://localhost:11434',
+    defaultModel: process.env.SABER_CODE_MODEL || process.env.SABER_MODEL || 'qwen2.5-coder:32b-instruct', // Updated: Best model (see MODEL_COMPARISON.md)
+    timeout: parseInt(process.env.SABER_CODE_TIMEOUT) || 120000,
     modelTimeouts: {
       'codellama:70b': 300000,
       'llama2:70b': 300000,
@@ -128,8 +131,18 @@ class Config {
   }
 
   _applyEnvOverrides() {
+    // Support both new and legacy env var names
+    if (process.env.SABER_CODE_BASE_URL) this._config.ollama.baseURL = process.env.SABER_CODE_BASE_URL;
     if (process.env.OLLAMA_HOST) this._config.ollama.baseURL = process.env.OLLAMA_HOST;
+    
+    if (process.env.SABER_CODE_MODEL) this._config.ollama.defaultModel = process.env.SABER_CODE_MODEL;
     if (process.env.SABER_MODEL) this._config.ollama.defaultModel = process.env.SABER_MODEL;
+    
+    if (process.env.SABER_CODE_TIMEOUT) this._config.ollama.timeout = parseInt(process.env.SABER_CODE_TIMEOUT);
+    
+    if (process.env.SABER_CODE_MAX_TOKENS) this._config.context.maxTokens = parseInt(process.env.SABER_CODE_MAX_TOKENS);
+    if (process.env.SABER_CODE_MAX_FILES) this._config.limits.maxFilesInContext = parseInt(process.env.SABER_CODE_MAX_FILES);
+    if (process.env.SABER_CODE_MAX_CONVERSATION) this._config.context.maxConversationMessages = parseInt(process.env.SABER_CODE_MAX_CONVERSATION);
   }
 
   /**

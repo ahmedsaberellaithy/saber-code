@@ -17,7 +17,7 @@ async function execute(ctx, args) {
   }
 
   await fileUtils.writeFile(filePath, typeof content === 'string' ? content : String(content));
-  return { path: filePath, written: true };
+  return { path: filePath, written: true, success: true };
 }
 
 module.exports = { name, description, schema, execute };

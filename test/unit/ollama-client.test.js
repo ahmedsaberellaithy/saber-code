@@ -28,7 +28,7 @@ describe('OllamaClient', () => {
   describe('constructor', () => {
     test('should initialize with Config', () => {
       expect(ollamaClient.config).toBe(config);
-      expect(ollamaClient.defaultModel).toBe('codellama:13b');
+      expect(ollamaClient.defaultModel).toBe(config.ollama.defaultModel);
     });
   });
 
@@ -37,7 +37,7 @@ describe('OllamaClient', () => {
       const mockResponse = {
         data: {
           response: 'Test response',
-          model: 'codellama:13b',
+          model: config.ollama.defaultModel,
           created_at: '2024-01-01T00:00:00Z',
           done: true
         }
@@ -48,11 +48,11 @@ describe('OllamaClient', () => {
       const result = await ollamaClient.generate('Test prompt');
 
       expect(result.content).toBe('Test response');
-      expect(result.model).toBe('codellama:13b');
+      expect(result.model).toBe(config.ollama.defaultModel);
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/api/generate',
         expect.objectContaining({
-          model: 'codellama:13b',
+          model: config.ollama.defaultModel,
           prompt: 'Test prompt',
           stream: false,
           options: expect.objectContaining({
@@ -241,8 +241,8 @@ describe('OllamaClient', () => {
     test('should list available models', async () => {
       const mockResponse = {
         data: {
-          models: [
-            { name: 'codellama:13b', size: 7000000000 },
+        models: [
+          { name: config.ollama.defaultModel, size: 7000000000 },
             { name: 'mistral', size: 4000000000 }
           ]
         }
@@ -253,7 +253,7 @@ describe('OllamaClient', () => {
       const models = await ollamaClient.listModels();
 
       expect(models).toHaveLength(2);
-      expect(models[0].name).toBe('codellama:13b');
+      expect(models[0].name).toBe(config.ollama.defaultModel);
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/tags');
     });
 
@@ -272,7 +272,7 @@ describe('OllamaClient', () => {
     test('should get model information', async () => {
       const mockResponse = {
         data: {
-          modelfile: 'FROM codellama:13b',
+          modelfile: `FROM ${config.ollama.defaultModel}`,
           parameters: 'temperature 0.7',
           template: 'test template'
         }
@@ -280,12 +280,12 @@ describe('OllamaClient', () => {
 
       mockAxiosInstance.post.mockResolvedValue(mockResponse);
 
-      const info = await ollamaClient.getModelInfo('codellama:13b');
+      const info = await ollamaClient.getModelInfo(config.ollama.defaultModel);
 
-      expect(info.modelfile).toBe('FROM codellama:13b');
+      expect(info.modelfile).toBe(`FROM ${config.ollama.defaultModel}`);
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         '/api/show',
-        { name: 'codellama:13b' }
+        { name: config.ollama.defaultModel }
       );
     });
   });
